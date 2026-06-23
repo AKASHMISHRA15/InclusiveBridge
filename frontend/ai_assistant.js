@@ -10,10 +10,16 @@
     let _chatGetter   = null; // injected by host page: () => messages[]
     let _historyLoaded = false;
     let _lastSessionId = null;
+    let _role         = 'Patient'; // 'Patient' or 'Caregiver' — set by host page
+
+    function _storageKey() {
+        // Separate history per role so patient & caregiver don't share AI conversations
+        return 'ai_chat_' + _role + '_' + _lastSessionId;
+    }
 
     function _saveHistory() {
-        if (!_lastSessionId) return; // do not save without session
-        localStorage.setItem('ai_chat_' + _lastSessionId, JSON.stringify(_history));
+        if (!_lastSessionId) return;
+        localStorage.setItem(_storageKey(), JSON.stringify(_history));
     }
 
     function _pollSession() {
@@ -22,8 +28,9 @@
             if (current && current !== _lastSessionId) {
                 _lastSessionId = current;
                 _historyLoaded = true;
-                
-                const data = localStorage.getItem('ai_chat_' + current);
+
+                // Key is role-specific: patient and caregiver have separate AI histories
+                const data = localStorage.getItem(_storageKey());
                 if (data) {
                     try {
                         const parsed = JSON.parse(data);
@@ -39,12 +46,12 @@
                                     _log.scrollTop = _log.scrollHeight;
                                 }
                             });
-                            return; // Success
+                            return;
                         }
                     } catch(e){}
                 }
-                
-                // If new session or empty history: clear and greet
+
+                // New session or empty history: clear and show greeting
                 _history = [];
                 if (_log) _log.innerHTML = '';
                 _appendMsg('ai', '👋 Hi! I\'m your InclusiveBridge AI assistant. I can summarise alerts, answer questions, translate messages, or set reminders. How can I help?');
@@ -57,6 +64,8 @@
     window.AIAssistant = {
         init,
         setContextGetter: (fn) => { _chatGetter = fn; },
+        // Call this BEFORE init() to separate patient vs caregiver AI history & sender
+        setRole: (role) => { _role = role || 'Patient'; },
     };
 
     /* ── DOM references (set after init) ─────────────────────────────────── */
@@ -322,21 +331,36 @@
 
     /* ── Reminder scheduling ──────────────────────────────────────────────── */
     function _scheduleReminder(message, delayMs) {
-        if (delayMs <= 0) {
-            // Instant send — fire immediately, no countdown noise
-            fetch('/chat/send', {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ sender: 'AI', text: message }),
-            }).catch(() => {
+        // Use the actual role as the sender so messages bubble on the correct side
+        const chatSender = _role; // 'Patient' or 'Caregiver'
+
+        async function _doSend(text) {
+            try {
+                const res = await fetch('/chat/send', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ sender: chatSender, text }),
+                });
+                const data = await res.json();
+                if (data.status === 'error') {
+                    _appendMsg('ai', `❌ Could not send: ${data.message || 'unknown error'}`);
+                } else {
+                    // Refresh chat so the sent message appears immediately
+                    if (typeof refreshChat === 'function') refreshChat();
+                    else if (typeof updateChat === 'function') updateChat();
+                }
+            } catch (e) {
                 _appendMsg('ai', '❌ Failed to send message to chat.');
-            });
-            // Single clean confirmation bubble — backend already shows "✅ I will send…"
-            // so we don't add anything extra here.
+            }
+        }
+
+        if (delayMs <= 0) {
+            // Instant send
+            _doSend(message);
             return;
         }
 
-        // Timed reminder — show one countdown message only
+        // Timed reminder — show countdown
         const mins = Math.floor(delayMs / 60000);
         const secs = Math.floor((delayMs % 60000) / 1000);
         let timeStr = '';
@@ -344,17 +368,7 @@
         if (secs > 0 || mins === 0) timeStr += `${secs} sec`;
         _appendMsg('ai', `⏰ Reminder set — "${message}" will be sent in ${timeStr.trim()}.`);
 
-        setTimeout(async () => {
-            try {
-                await fetch('/chat/send', {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body:    JSON.stringify({ sender: 'AI', text: `⏰ ${message}` }),
-                });
-            } catch (e) {
-                _appendMsg('ai', '❌ Failed to send reminder.');
-            }
-        }, delayMs);
+        setTimeout(() => _doSend(`⏰ ${message}`), delayMs);
     }
 
     /* ── Log rendering helpers ────────────────────────────────────────────── */

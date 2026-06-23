@@ -996,6 +996,7 @@ window.addEventListener('beforeunload', (e) => {
 <script src="/static/ai_assistant.js?v=4"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    AIAssistant.setRole('Patient'); // Must be called before init()
     AIAssistant.init();
     // Provide live chat messages as context for AI
     AIAssistant.setContextGetter(() => {

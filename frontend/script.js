@@ -207,13 +207,12 @@ function renderLiveMessage(m) {
     const isPatient = m.sender === 'Patient';
     const isSystem  = m.sender === 'System';
     const isAI      = m.sender === 'AI';
+    // System alerts & AI messages originate from the patient's device — show on right (sent) side
     let side = 'received';
-    if (isPatient) side = 'sent';
-    else if (isSystem) side = 'alert';
-    else if (isAI) side = 'ai';
+    if (isPatient || isSystem || isAI) side = 'sent';
     let senderLabel = m.sender.toUpperCase();
     if (isSystem) senderLabel = '🚨 ALERT';
-    if (isAI) senderLabel = '✨ AI ALERT';
+    if (isAI) senderLabel = '✨ AI';
     if (isVoiceMsg(m)) {
         return `<div class="live-msg ${m.sender.toLowerCase()} ${side}"><small>${senderLabel}</small>${voicePlayerHtml(m)}</div>`;
     }

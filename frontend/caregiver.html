@@ -708,6 +708,7 @@ document.addEventListener('visibilitychange', () => {
 <script src="/static/ai_assistant.js?v=4"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    AIAssistant.setRole('Caregiver'); // Must be called before init()
     AIAssistant.init();
     AIAssistant.setContextGetter(() => {
         const box = document.getElementById('live-chat-display');

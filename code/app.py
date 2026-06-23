@@ -1158,20 +1158,31 @@ async def send_voice(
 @app.post("/chat/send")
 async def send_chat(data: dict, request: Request):
     sender = data.get("sender", "Patient")
+
+    # Resolve session based on who is sending.
+    # For 'Caregiver' — look up caregiver's monitoring session.
+    # For 'Patient'   — look up patient's active session.
+    # For anything else (System, AI, etc.) — try patient sid first, then caregiver sid.
     if sender == "Caregiver":
         sid = get_monitoring_sid(request)
-    else:
+    elif sender == "Patient":
         sid = get_patient_sid(request)
+    else:
+        sid = get_patient_sid(request) or get_monitoring_sid(request)
+
     if not sid:
         return {"status": "error", "message": "No session attached"}
-    text   = data.get("text",   "").strip()
+    text = data.get("text", "").strip()
     if not text: return {"status": "ok"}
 
     save_log(sid, sender, text, "message")
     push = json.dumps({"type": "chat", "sender": sender, "text": text, "timestamp": time.strftime("%H:%M:%S")})
 
-    if sender == "Patient": await rtc.relay_to_caregivers(sid, push)
-    else: await rtc.relay_to_patient(sid, push)
+    # Relay direction: patient-originated messages go to caregivers; everything else goes to patient
+    if sender == "Patient":
+        await rtc.relay_to_caregivers(sid, push)
+    else:
+        await rtc.relay_to_patient(sid, push)
     return {"status": "ok"}
 
 
