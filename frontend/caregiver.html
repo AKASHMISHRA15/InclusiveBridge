@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Force desktop layout on all devices and prevent auto-zoom on inputs -->
+    <meta name="viewport" content="width=1024, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <title>InclusiveBridge | Caregiver Portal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/css/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- App Styles -->
+    <style>
+        .video-muted { opacity: 0.1; filter: grayscale(100%); transition: 0.5s; }
+        #mic-btn.recording {
+            background-color: #ef4444 !important;
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+            50%      { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        }
+        .session-item {
+            background: #334155; padding: 10px; margin-bottom: 8px;
+            border-radius: 8px; cursor: pointer;
+            border-left: 4px solid #38bdf8; font-size: 0.85rem;
+        }
+        .session-item:hover { background: #475569; }
+
+        #main-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            border-radius: 8px;
+            transform: scaleX(-1);
+        }
+
+        #status-badge {
+            display: none; position: absolute; bottom: 12px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); font-size: 1.6rem; font-weight: 700;
+            padding: 10px 24px; border-radius: 18px; white-space: nowrap;
+            z-index: 10; pointer-events: none;
+        }
+        #video-status {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.85); border-radius: 8px;
+            color: #94a3b8; font-size: 0.9rem; font-weight: 600;
+            flex-direction: column; gap: 10px;
+            pointer-events: none;
+        }
+        #video-status.hidden { display: none; }
+
+        .video-spinner {
+            width: 30px; height: 30px;
+            border: 3px solid #334155; border-top-color: #38bdf8;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .video-wrapper { position: relative; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>InclusiveBridge <span>Caregiver Portal</span></h1>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <div id="connection-status">● Checking...</div>
+        <button id="enable-notifications-btn" style="background:#3b82f6;border:none;color:#fff;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:0.88rem;transition:0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'" onclick="toggleNotifications()">🔔 Alerts</button>
+        <button onclick="leaveSession()"
+            style="background:transparent;border:1px solid #facc15;color:#facc15;
+                   padding:8px 18px;border-radius:8px;cursor:pointer;font-size:0.88rem;transition:0.2s;"
+            onmouseover="this.style.background='rgba(250,204,21,0.1)'"
+            onmouseout="this.style.background='transparent'">Leave Monitoring</button>
+        <button onclick="exitSession()"
+            style="background:transparent;border:1px solid #ef4444;color:#ef4444;
+                   padding:8px 18px;border-radius:8px;cursor:pointer;font-size:0.88rem;transition:0.2s;"
+            onmouseover="this.style.background='rgba(239,68,68,0.1)'"
+            onmouseout="this.style.background='transparent'">Exit Session</button>
+    </div>
+</nav>
+
+<main class="dashboard-container">
+    <section class="patient-side">
+        <div id="patient-offline-banner" style="display:none; background:rgba(245, 158, 11, 0.2); border:1px solid #f59e0b; color:#fcd34d; padding:12px; border-radius:8px; margin-bottom:16px; text-align:center; font-weight:600;">
+            📴 Patient has temporarily left. Waiting for them to rejoin…
+        </div>
+        <div class="video-section">
+            <div class="card-header" id="feed-label">Live Feed: Loading...</div>
+            <div class="video-wrapper">
+                <video id="main-feed" autoplay playsinline></video>
+                <div id="video-status">
+                    <div class="video-spinner"></div>
+                    <span>Waiting for patient stream…</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <div id="live-chat-display" class="live-chat-window"></div>
+            <div class="chat-input-bar">
+                <button id="mic-btn" class="icon-btn" title="Speech to text">🎤</button>
+                <input type="text" id="chat-input" placeholder="Type or speak instructions..." inputmode="text" autocomplete="off">
+                <button id="tts-btn" class="icon-btn" title="Read messages out loud"
+                    onclick="ttsEnabled=!ttsEnabled;this.textContent=ttsEnabled?'🔊':'🔇';
+                             this.classList.toggle('tts-on',ttsEnabled);">🔇</button>
+                <button id="voice-msg-btn" class="icon-btn" title="Record voice message">🎙️</button>
+                <button id="send-btn" class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        
+        </div>
+    </section>
+
+    <aside class="sidebar">
+        <div class="status-card">
+            <h3>Posture</h3>
+            <p id="p-status" style="color:#94a3b8;">---</p>
+        </div>
+        <div class="status-card">
+            <h3>Expression</h3>
+            <p id="e-status" style="color:#94a3b8;">---</p>
+        </div>
+        <div id="ai-sidebar-container" style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(56,189,248,0.2); border-radius:12px; background:rgba(15,23,42,0.6);"></div>
+    </aside>
+</main>
+
+<script>
+const statusHeader = document.getElementById('connection-status');
+const feedVideo    = document.getElementById('main-feed');
+const videoStatus  = document.getElementById('video-status');
+const chatInput    = document.getElementById('chat-input');
+
+
+let ttsEnabled       = false;
+let lastMessageCount = 0;
+let recognition      = null;
+let cg_pc            = null;
+let cg_ws            = null;
+let wsReconnectTimer = null;
+let currentSessionId = null;
+let _pcInitialising  = false;
+let _intentionalLeave = false;
+let _initialChatLoaded = false;
+let _chatFingerprint = '';
+let isViewingHistory = false;
+
+function isVoiceMsg(m) {
+    if (!m) return false;
+    const t = (m.msg_type || m.type || '').toLowerCase();
+    const msg = String(m.message || '');
+    return t === 'voice' || msg.indexOf('/chat/voice/') !== -1;
+}
+function voicePlayerHtml(m) {
+    const src = String(m.message || '');
+    if (!src || src.indexOf('/chat/voice/') === -1) return '<span class="voice-msg-label">🎙️ Voice message</span>';
+    return `<div class="voice-msg-wrap"><span class="voice-msg-label">🎙️ Voice message</span>
+        <audio controls preload="metadata" class="voice-msg-player" src="${src}"></audio></div>`;
+}
+function renderMsgBody(m) {
+    if (isVoiceMsg(m)) return voicePlayerHtml(m);
+    return String(m.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function chatFingerprint(msgs) {
+    return (msgs||[]).map(m => [m.sender,m.message,m.msg_type||m.type,m.timestamp].join('|')).join('\n');
+}
+function showIncomingNotification(title, body) {
+    if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification(title, {
+            body,
+            tag: 'inclusivebridge-message',
+            renotify: true,
+            vibrate: [200, 100, 200]
+        });
+    } catch (err) {
+        console.warn('Browser notification failed:', err);
+    }
+}
+function showNotificationTest() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification('InclusiveBridge alerts enabled', {
+            body: 'This is a test notification from this browser.',
+            tag: 'inclusivebridge-test',
+            renotify: true
+        });
+    } catch (err) {
+        console.warn('Test notification failed:', err);
+    }
+}
+function initVoiceRecorder(buttonEl, sender, onSent) {
+    if (!buttonEl || !window.MediaRecorder) return;
+    let rec=null, stream=null, chunks=[], active=false, timer=null;
+    buttonEl.addEventListener('click', async () => {
+        if (active) { if(rec&&rec.state!=='inactive')rec.stop(); active=false; clearTimeout(timer);
+            buttonEl.classList.remove('recording'); return; }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({audio:true});
+            chunks = [];
+            const mime = ['audio/webm;codecs=opus','audio/webm'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+            rec = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+            rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+            rec.onstop = async () => {
+                stream.getTracks().forEach(t=>t.stop());
+                if(!chunks.length) return;
+                const blob = new Blob(chunks,{type:rec.mimeType||'audio/webm'});
+                const fd = new FormData();
+                fd.append('file', blob, 'voice.webm');
+                fd.append('sender', sender);
+                const res = await fetch('/chat/send-voice',{method:'POST',body:fd});
+                if(!res.ok) alert('Could not send voice message.');
+                else if(onSent) onSent();
+            };
+            rec.start(250); active=true;
+            buttonEl.classList.add('recording');
+            timer = setTimeout(()=>{if(active&&rec)rec.stop();active=false;buttonEl.classList.remove('recording');},60000);
+        } catch(e) { alert('Microphone access required.'); }
+    });
+}
+
+const WS_PROTO  = window.location.protocol === "https:" ? "wss" : "ws";
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+    ]
+};
+
+// ── Mobile height fix ─────────────────────────────────────────────────────────
+function fixMobileHeight() {
+    document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+}
+fixMobileHeight();
+window.addEventListener('resize', fixMobileHeight);
+
+// ── Notification toggle ───────────────────────────────────────────────────────
+let _notifEnabled = false;
+async function setupPushSubscription() {
+    if (!('serviceWorker' in navigator && 'PushManager' in window)) {
+        showToast('Push alerts are not supported in this browser.', 'warning');
+        return false;
+    }
+    try {
+        const reg = await navigator.serviceWorker.register('/service-worker.js');
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            const res = await fetch('/api/vapidPublicKey');
+            if (!res.ok) throw new Error('VAPID key unavailable');
+            const rawKey = await res.text();
+            const padding = '='.repeat((4 - rawKey.length % 4) % 4);
+            const base64 = (rawKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const binary = window.atob(base64);
+            const arr = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+            sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+        }
+        const saveRes = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sub)
+        });
+        if (!saveRes.ok) throw new Error('Could not save subscription');
+        return true;
+    } catch (err) {
+        console.warn('Push subscription failed:', err);
+        showToast('Notifications are allowed, but alert registration failed. Try rejoining the session.', 'warning');
+        return false;
+    }
+}
+
+async function disablePushSubscription() {
+    try {
+        if (!('serviceWorker' in navigator && 'PushManager' in window)) return;
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+    } catch (err) {
+        console.warn('Push unsubscribe failed:', err);
+    }
+}
+
+window.toggleNotifications = async function() {
+    const btn = document.getElementById('enable-notifications-btn');
+    if (!('Notification' in window)) { showToast('Notifications not supported.', 'warning'); return; }
+    if (Notification.permission === 'denied') { showToast('Notifications blocked — allow in browser settings.', 'warning'); return; }
+    if (!_notifEnabled) {
+        const perm = Notification.permission === 'granted'
+            ? 'granted'
+            : await Notification.requestPermission();
+        if (perm === 'granted') {
+            const subscribed = await setupPushSubscription();
+            if (!subscribed) return;
+            _notifEnabled = true;
+            if (btn) { btn.textContent = '🔕 Disable Alerts'; btn.style.background = '#16a34a'; }
+            showToast('✅ Notifications ENABLED — you will be alerted for new messages.', 'success');
+            showNotificationTest();
+        } else {
+            showToast('❌ Permission denied. Enable in browser settings.', 'warning');
+        }
+    } else {
+        await disablePushSubscription();
+        _notifEnabled = false;
+        if (btn) { btn.textContent = '🔔 Alerts'; btn.style.background = '#3b82f6'; }
+        showToast('🔕 Notifications DISABLED for this session.', 'info');
+    }
+};
+window.requestNotifications = window.toggleNotifications;
+
+function showToast(message, type) {
+    let toast = document.getElementById('notif-toast');
+    if (!toast) { toast = document.createElement('div'); toast.id = 'notif-toast'; document.body.appendChild(toast); }
+    const colors = { success: '#16a34a', warning: '#d97706', info: '#3b82f6' };
+    toast.style.cssText = `position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+        background:${colors[type]||'#3b82f6'};color:#fff;padding:12px 24px;border-radius:12px;
+        font-size:0.9rem;font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.45);
+        max-width:90vw;text-align:center;pointer-events:none;opacity:1;transition:opacity 0.4s;`;
+    toast.textContent = message;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 3500);
+}
+
+// Restore button state if already granted
+if ('Notification' in window && Notification.permission === 'granted') {
+    document.addEventListener('DOMContentLoaded', async () => {
+        const subscribed = await setupPushSubscription();
+        if (!subscribed) return;
+        _notifEnabled = true;
+        const btn = document.getElementById('enable-notifications-btn');
+        if (btn) { btn.textContent = '🔕 Disable Alerts'; btn.style.background = '#16a34a'; }
+    });
+}
+
+// ── Mobile Virtual Keyboard ───────────────────────────────────────────────────
+let cgKeyboard = null;
+function isMobileDevice() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+           (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
+}
+function initCgMobileKeyboard() {
+    const inp = document.getElementById('chat-input');
+    const kbc = document.getElementById('simple-keyboard');
+    if (!inp || !kbc) return;
+    if (typeof window.SimpleKeyboard === 'undefined') { setTimeout(initCgMobileKeyboard, 500); return; }
+    cgKeyboard = new window.SimpleKeyboard.default({
+        onChange: v => { inp.value = v; },
+        onKeyPress: btn => {
+            if (btn === '{enter}') { sendMessage(inp.value.trim()); inp.value = ''; cgKeyboard.clearInput(); return; }
+            if (btn === '{shift}' || btn === '{lock}') {
+                cgKeyboard.setOptions({ layoutName: cgKeyboard.options.layoutName === 'default' ? 'shift' : 'default' });
+            }
+        },
+        theme: 'hg-theme-default myTheme',
+        layout: {
+            default: ['1 2 3 4 5 6 7 8 9 0 {bksp}','q w e r t y u i o p','a s d f g h j k l','{shift} z x c v b n m , . {shift}','{space} {enter}'],
+            shift:   ['! @ # $ % ^ & * ( ) {bksp}','Q W E R T Y U I O P','A S D F G H J K L','{shift} Z X C V B N M < > {shift}','{space} {enter}']
+        },
+        display: { '{bksp}': '⌫', '{enter}': 'Send ↵', '{shift}': '⇧ Shift', '{space}': 'Space' }
+    });
+    kbc.style.display = 'block';
+}
+if (isMobileDevice()) { document.addEventListener('DOMContentLoaded', () => setTimeout(initCgMobileKeyboard, 200)); }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function loadPatientInfo() {
+    try {
+        const res  = await fetch('/monitored-session');
+        const data = await res.json();
+        if (data.patient_name)
+            document.getElementById('feed-label').textContent = 'Live Feed: ' + data.patient_name;
+    } catch(e) {}
+}
+
+function speakOutLoud(text) {
+    if (!ttsEnabled || !text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+async function updateAll() {
+    try {
+        const res  = await fetch('/status');
+        const data = await res.json();
+
+        const offlineBanner = document.getElementById('patient-offline-banner');
+        if (!data.session_active) {
+            statusHeader.innerText   = "🔴 Session Ended";
+            statusHeader.style.color = "#ef4444";
+            feedVideo.classList.add('video-muted');
+            if (offlineBanner) offlineBanner.style.display = 'none';
+        } else if (data.patient_online === false) {
+            statusHeader.innerText   = "📴 Patient Offline";
+            statusHeader.style.color = "#f59e0b";
+            feedVideo.classList.add('video-muted');
+            if (offlineBanner) offlineBanner.style.display = 'block';
+        } else if (!data.running) {
+            statusHeader.innerText   = "🟡 Monitoring Paused";
+            statusHeader.style.color = "#facc15";
+            if (offlineBanner) offlineBanner.style.display = 'none';
+        } else {
+            statusHeader.innerText   = "🟢 System Live";
+            statusHeader.style.color = "#22c55e";
+            if (offlineBanner) offlineBanner.style.display = 'none';
+        }
+
+        if (!isViewingHistory) await refreshChat();
+
+    } catch(e) {
+        statusHeader.innerText   = "⚠ Server Offline";
+        statusHeader.style.color = "#ef4444";
+    }
+}
+
+async function refreshChat() {
+    try {
+        const chatRes  = await fetch('/chat');
+        const messages = await chatRes.json();
+        const fp = chatFingerprint(messages);
+        if (fp === _chatFingerprint) return;
+        _chatFingerprint = fp;
+
+        const liveDisplay = document.getElementById('live-chat-display');
+        const wasAtBottom = liveDisplay.scrollHeight - liveDisplay.scrollTop <= liveDisplay.clientHeight + 40;
+
+        liveDisplay.innerHTML = messages.slice(-100).map(m => {
+            let type = 'received';
+            if (m.sender === 'Caregiver') type = 'sent';
+            else if (m.sender === 'System') type = 'alert';
+            else if (m.sender === 'AI') type = 'ai';
+
+            if (isVoiceMsg(m)) {
+                return `<div class="live-msg ${m.sender.toLowerCase()} ${type}">
+                    <small>${m.sender.toUpperCase()}</small>${voicePlayerHtml(m)}</div>`;
+            }
+            const safe = String(m.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+            return `<div class="live-msg ${m.sender.toLowerCase()} ${type}">
+                <small>${m.sender.toUpperCase()}</small><p>${safe}</p></div>`;
+        }).join('');
+
+        if (wasAtBottom) liveDisplay.scrollTop = liveDisplay.scrollHeight;
+
+        if (messages.length > lastMessageCount) {
+            const newest = messages[messages.length - 1];
+            if (_initialChatLoaded && !isVoiceMsg(newest)) {
+                speakOutLoud(`${newest.sender} says: ${newest.message}`);
+                if (newest.sender !== 'Caregiver') {
+                    showIncomingNotification(`Message from ${newest.sender}`, newest.message);
+                }
+            }
+            lastMessageCount = messages.length;
+        }
+        _initialChatLoaded = true;
+    } catch(e) { console.error('refreshChat:', e); }
+}
+
+async function sendMessage(textOverride) {
+    const text = textOverride || chatInput.value.trim();
+    if (!text) return;
+    
+    // Optimistic UI update
+    const msgObj = { sender: "Caregiver", message: text, timestamp: new Date().toLocaleTimeString('en-US', {hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit"}) };
+    const liveDisplay = document.getElementById('live-chat-display');
+    if (liveDisplay && typeof renderLiveMessage !== 'undefined') {
+        liveDisplay.insertAdjacentHTML('beforeend', renderLiveMessage(msgObj));
+        liveDisplay.scrollTop = liveDisplay.scrollHeight;
+    }
+    const chatBox = document.getElementById('chat-box');
+    if (chatBox && typeof renderMessage !== 'undefined') {
+        chatBox.insertAdjacentHTML('beforeend', renderMessage(msgObj));
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    chatInput.value = "";
+    
+    // Send async without blocking UI
+    fetch('/chat/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender: "Caregiver", text })
+    }).then(() => {
+        _chatFingerprint = '';
+        if (typeof refreshChat === 'function') refreshChat();
+    });
+}
+
+chatInput.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+
+try {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SR) { recognition = new SR(); recognition.continuous = false; recognition.lang = 'en-US'; }
+} catch(e) {}
+
+const micBtn = document.getElementById('mic-btn');
+if (micBtn && recognition) {
+    micBtn.onclick       = () => { recognition.start(); micBtn.classList.add('recording'); };
+    recognition.onresult = (e) => { micBtn.classList.remove('recording'); sendMessage(e.results[0][0].transcript); };
+    recognition.onerror  = ()  => { micBtn.classList.remove('recording'); };
+}
+
+
+
+async function leaveSession() {
+    if (!confirm("Leave this monitoring session?\n\nThe patient will keep monitoring. You can rejoin later from the home page.")) return;
+    _intentionalLeave = true;
+    clearTimeout(wsReconnectTimer);
+    if (cg_ws) { cg_ws.onclose = null; cg_ws.close(); }
+    if (cg_pc) { cg_pc.close(); }
+    try { await fetch('/leave-session', { method: 'POST' }); } catch {}
+    window.location.href = '/';
+}
+
+async function exitSession() {
+    if (!confirm("Exit and end the session for everyone?\n\nThis will stop monitoring for the patient.")) return;
+    _intentionalLeave = true;
+    clearTimeout(wsReconnectTimer);
+    if (cg_ws) { cg_ws.onclose = null; cg_ws.close(); }
+    if (cg_pc) { cg_pc.close(); }
+    try { await fetch('/end-session', { method: 'POST' }); } catch {}
+    window.location.href = '/dashboard';
+}
+
+// ── WebRTC ────────────────────────────────────────────────────────────────────
+
+function initPeerConnection() {
+    if (cg_pc) { try { cg_pc.close(); } catch {} cg_pc = null; }
+
+    cg_pc = new RTCPeerConnection(rtcConfig);
+
+    cg_pc.ontrack = (event) => {
+        console.log("🎬 Stream received from patient");
+        const stream = event.streams[0];
+        if (feedVideo.srcObject !== stream) {
+            feedVideo.srcObject = stream;
+        }
+        feedVideo.onloadedmetadata = () => {
+            feedVideo.play().catch(e => console.warn("Autoplay blocked:", e));
+            videoStatus.classList.add('hidden');
+            feedVideo.classList.remove('video-muted');
+        };
+    };
+
+    cg_pc.onicecandidate = (e) => {
+        if (e.candidate && cg_ws && cg_ws.readyState === WebSocket.OPEN)
+            cg_ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
+    };
+
+    cg_pc.onconnectionstatechange = () => {
+        console.log("RTC state:", cg_pc.connectionState);
+        if (cg_pc.connectionState === 'failed' || cg_pc.connectionState === 'disconnected') {
+            videoStatus.classList.remove('hidden');
+            if (cg_ws && cg_ws.readyState === WebSocket.OPEN)
+                cg_ws.send(JSON.stringify({ type: 'request_offer' }));
+        }
+    };
+}
+
+function connectCaregiverWS(sessionId) {
+    if (cg_ws) { try { cg_ws.close(); } catch {} }
+    clearTimeout(wsReconnectTimer);
+
+    cg_ws = new WebSocket(`${WS_PROTO}://${window.location.host}/ws/caregiver/${sessionId}`);
+
+    cg_ws.onopen = () => {
+        console.log("✅ Caregiver WS connected");
+        cg_ws.send(JSON.stringify({ type: 'caregiver_ready' }));
+        sendCaregiverVisibility();
+    };
+
+    cg_ws.onmessage = async (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === 'control') {
+            if (msg.action === 'pause') {
+                feedVideo.classList.add('video-muted');
+                videoStatus.classList.remove('hidden');
+                videoStatus.innerHTML = '<span style="font-size:1.6rem;">⏸</span><span>Patient paused camera</span>';
+            }
+            if (msg.action === 'patient_left') {
+                feedVideo.classList.add('video-muted');
+                videoStatus.classList.remove('hidden');
+                videoStatus.innerHTML = '<span style="font-size:1.6rem;">📴</span><span>Patient offline</span>';
+                document.getElementById('patient-offline-banner').style.display = 'block';
+                statusHeader.innerText   = "📴 Patient Offline";
+                statusHeader.style.color = "#f59e0b";
+            }
+            if (msg.action === 'resume' || msg.action === 'ready') {
+                feedVideo.classList.remove('video-muted');
+                if (feedVideo.srcObject) videoStatus.classList.add('hidden');
+                document.getElementById('patient-offline-banner').style.display = 'none';
+                statusHeader.innerText   = "🟢 System Live";
+                statusHeader.style.color = "#22c55e";
+            }
+            if (msg.action === 'ended') {
+                statusHeader.innerText   = "🔴 Session Ended";
+                statusHeader.style.color = "#ef4444";
+                feedVideo.classList.add('video-muted');
+                alert("The patient has ended the session.");
+                window.location.href = '/';
+            }
+            return;
+        }
+
+        if (msg.type === 'offer') {
+            if (_pcInitialising) return;
+            _pcInitialising = true;
+            initPeerConnection();
+            try {
+                await cg_pc.setRemoteDescription(
+                    new RTCSessionDescription({ type: 'offer', sdp: msg.sdp })
+                );
+                const answer = await cg_pc.createAnswer();
+                await cg_pc.setLocalDescription(answer);
+                cg_ws.send(JSON.stringify({ type: 'answer', sdp: cg_pc.localDescription.sdp }));
+            } catch(e) {
+                console.error("Offer handling error:", e);
+            } finally {
+                _pcInitialising = false;
+            }
+        }
+
+        else if (msg.type === 'ice') {
+            if (cg_pc && msg.candidate) {
+                try { await cg_pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }
+                catch(e) { console.warn("addIceCandidate:", e); }
+            }
+        }
+
+        else if (msg.type === 'analysis') {
+            const pEl = document.getElementById('p-status');
+            const eEl = document.getElementById('e-status');
+            const ts  = new Date().toLocaleTimeString();
+
+            if (pEl) {
+                pEl.innerText   = msg.calibrating ? '⏳ Calibrating…' : (msg.posture || '---');
+                pEl.style.color = (!msg.calibrating && msg.posture_severity === 'NORMAL')
+                    ? '#22c55e' : '#facc15';
+                pEl.title = `Updated: ${ts}`;
+            }
+            if (eEl) {
+                eEl.innerText   = msg.calibrating ? '⏳ Calibrating…' : (msg.expression_label || '---');
+                eEl.style.color = (!msg.calibrating && msg.expression_severity === 'NORMAL')
+                    ? '#22c55e' : '#facc15';
+                eEl.title = `Updated: ${ts}`;
+            }
+        }
+    };
+
+    cg_ws.onclose = () => {
+        if (_intentionalLeave) return;
+        console.warn("Caregiver WS closed — reconnecting in 2s…");
+        wsReconnectTimer = setTimeout(() => connectCaregiverWS(sessionId), 2000);
+    };
+
+    cg_ws.onerror = (e) => console.error("Caregiver WS error:", e);
+}
+
+function sendCaregiverVisibility() {
+    if (!cg_ws || cg_ws.readyState !== WebSocket.OPEN) return;
+    cg_ws.send(JSON.stringify({
+        type: "client_visibility",
+        hidden: document.hidden
+    }));
+}
+
+async function initCaregiverSession() {
+    try {
+        const res  = await fetch('/monitored-session');
+        const data = await res.json();
+        
+        if (data.session_id) {
+            currentSessionId = data.session_id;
+            window.currentSessionId = data.session_id;
+            connectCaregiverWS(data.session_id);
+        } else {
+            alert("No active session authorized. Redirecting to search portal.");
+            window.location.href = '/monitor';
+        }
+    } catch(e) { 
+        console.error("initCaregiverSession:", e); 
+        window.location.href = '/monitor';
+    }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+initVoiceRecorder(
+    document.getElementById('voice-msg-btn'),
+    'Caregiver',
+    () => { _chatFingerprint = ''; refreshChat(); }
+);
+initCaregiverSession();
+loadPatientInfo();
+refreshChat();
+setInterval(updateAll, 2000);
+
+// Fix for video pausing when app is minimized on mobile
+document.addEventListener('visibilitychange', () => {
+    sendCaregiverVisibility();
+    if (!document.hidden && feedVideo && feedVideo.srcObject) {
+        feedVideo.play().catch(e => console.warn("Auto-play blocked after visibility change:", e));
+    }
+});
+</script>
+<script src="/static/ai_assistant.js?v=4"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    AIAssistant.init();
+    AIAssistant.setContextGetter(() => {
+        const box = document.getElementById('live-chat-display');
+        if (!box) return [];
+        return Array.from(box.querySelectorAll('.live-msg')).map(el => ({
+            sender: el.querySelector('small')?.textContent || 'Unknown',
+            message: el.querySelector('p')?.textContent || el.textContent || '',
+            timestamp: '',
+        }));
+    });
+});
+</script>
+<!-- Virtual keyboard container (shown on mobile) -->
+<div id="simple-keyboard" style="display:none; position:fixed; bottom:0; left:0; width:100%; z-index:1000;"></div>
+
+</body>
+</html>

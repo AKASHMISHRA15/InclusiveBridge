@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Force desktop layout on all devices and prevent auto-zoom on inputs -->
+    <meta name="viewport" content="width=1024, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <title>InclusiveBridge | Patient Monitor</title>
+    <!-- Face-api.js -->
+    <script defer src="/static/face-api.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/css/index.css">
+<script src="https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .controls-card {
+            background: rgba(30,41,59,0.85);
+            border: 1px solid rgba(56,189,248,0.18);
+            border-radius: 14px; padding: 12px 14px; margin-bottom: 0;
+        }
+        .controls-card h3 {
+            font-size: 0.78rem; color: #94a3b8; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 14px; font-weight: 600;
+        }
+        .control-btns { display: flex; flex-direction: column; gap: 10px; }
+        .ctrl-btn {
+            width: 100%; padding: 11px 16px; border: none; border-radius: 9px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; letter-spacing: 0.3px;
+        }
+        .ctrl-btn:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+        .ctrl-btn:active { transform: translateY(0); }
+        .ctrl-pause  { background: rgba(250,204,21,0.15); border: 1px solid rgba(250,204,21,0.4); color: #facc15; }
+        .ctrl-resume { background: rgba(34,197,94,0.15);  border: 1px solid rgba(34,197,94,0.4);  color: #22c55e; }
+        .ctrl-end    { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.35); color: #ef4444; }
+
+        .video-wrapper { position: relative; }
+
+        #local-video {
+            border: none !important; outline: none !important;
+            display: block; border-radius: 8px; transform: scaleX(-1);
+        }
+        #overlay-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; border-radius: 8px;
+            transform: scaleX(-1);
+        }
+        #calib-banner {
+            display: none; position: absolute; top: 10px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.72); color: #facc15;
+            font-size: 1rem; font-weight: 700; padding: 8px 22px;
+            border-radius: 20px; border: 1px solid #facc15;
+            letter-spacing: 0.5px; white-space: nowrap; z-index: 10; pointer-events: none;
+        }
+        #calib-banner.visible { display: block; }
+        #status-badge {
+            display: none; position: absolute; bottom: 12px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); font-size: 1.6rem; font-weight: 700;
+            padding: 10px 24px; border-radius: 18px; white-space: nowrap;
+            z-index: 10; pointer-events: none;
+        }
+        #status-badge.visible { display: block; }
+
+        /* ── Loading overlay ── */
+        #model-loading {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.93); border-radius: 8px;
+            z-index: 30; color: #f8fafc; gap: 14px;
+            padding: 20px;
+        }
+        .spinner {
+            width: 38px; height: 38px;
+            border: 3px solid #334155; border-top-color: #38bdf8;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #loading-steps {
+            display: flex; flex-direction: column; gap: 6px;
+            width: 100%; max-width: 260px;
+        }
+        .load-step {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.8rem; color: #94a3b8; transition: color 0.3s;
+        }
+        .load-step.done    { color: #22c55e; }
+        .load-step.active  { color: #38bdf8; }
+        .load-step.error   { color: #ef4444; }
+        .step-icon { width: 16px; text-align: center; font-size: 0.85rem; }
+
+        #loading-sub {
+            font-size: 0.75rem; color: #64748b;
+            text-align: center; max-width: 240px;
+        }
+        #retry-btn {
+            display: none; margin-top: 4px;
+            background: #1e40af; color: white; border: none;
+            border-radius: 8px; padding: 8px 20px;
+            font-size: 0.85rem; cursor: pointer; font-weight: 600;
+        }
+        #retry-btn:hover { background: #2563eb; }
+
+        #camera-pause-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.88);
+            color: #facc15;
+            font-size: 1rem;
+            font-weight: 600;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 12;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+        #camera-pause-overlay.visible { display: flex; }
+        .video-wrapper.camera-paused video { filter: grayscale(100%) brightness(0.35); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>InclusiveBridge <span>v1.0</span></h1>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <div id="connection-status" style="margin-right: 8px;">● System Live</div>
+        <button id="enable-notifications-btn" style="background:#3b82f6;border:none;color:#fff;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:0.85rem;box-shadow:0 2px 4px rgba(0,0,0,0.2);transition:0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'" onclick="toggleNotifications()">🔔 Alerts</button>
+        <button onclick="leaveSession()" style="background:#ef4444; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.85rem; box-shadow:0 2px 4px rgba(0,0,0,0.2);">🚪 Leave Session</button>
+    </div>
+</nav>
+
+<main class="dashboard-container">
+    <section class="patient-side">
+
+        <div class="video-section">
+            <div class="card-header">Live Patient Feed</div>
+            <div class="video-wrapper">
+                <video id="local-video" autoplay muted playsinline
+                       style="width:100%;height:100%;object-fit:contain;"></video>
+                <canvas id="overlay-canvas"></canvas>
+                <div id="calib-banner">
+                    ⏳ Calibrating… <span id="calib-countdown">10</span>s — keep neutral face
+                </div>
+                <div id="status-badge"></div>
+                <div id="camera-pause-overlay">
+                    <span style="font-size:2rem;">⏸</span>
+                    <span>Camera paused</span>
+                </div>
+
+                <div id="model-loading">
+                    <div class="spinner"></div>
+                    <div style="font-size:1rem;font-weight:600;">Initializing…</div>
+
+                    <div id="loading-steps">
+                        <div class="load-step active" id="step-camera">
+                            <span class="step-icon">⏳</span> Camera access
+                        </div>
+                        <div class="load-step" id="step-models">
+                            <span class="step-icon">⏸</span> Loading AI models
+                        </div>
+                        <div class="load-step" id="step-session">
+                            <span class="step-icon">⏸</span> Starting session
+                        </div>
+                    </div>
+
+                    <div id="loading-sub">Requesting camera permission…</div>
+                    <button id="retry-btn" onclick="retryInit()">🔄 Retry</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <div id="live-chat-display" class="live-chat-window"></div>
+            <div class="chat-input-bar">
+                <button id="mic-btn" class="icon-btn" title="Speech to text">🎤</button>
+                <input type="text" id="chat-input" placeholder="Type or speak..." inputmode="text" autocomplete="off">
+                <button id="tts-btn" class="icon-btn" title="Read messages out loud">🔇</button>
+                <button id="voice-msg-btn" class="icon-btn" title="Record voice message">🎙️</button>
+                <button id="send-btn" class="send-btn">Send</button>
+            </div>
+        </div>
+        
+    </section>
+
+    <aside class="sidebar">
+        <div class="status-card" id="posture-card">
+            <h3>Posture Status</h3>
+            <p id="p-status" style="font-size:1.4rem; font-weight:700;">Checking...</p>
+        </div>
+        <div class="status-card" id="facial-card">
+            <h3>Facial Expression</h3>
+            <p id="e-status" style="font-size:1.4rem; font-weight:700;">Analyzing...</p>
+        </div>
+        <div class="controls-card">
+            <h3>System Controls</h3>
+            <div class="control-btns">
+                <button class="ctrl-btn ctrl-pause"  onclick="pauseSystem()">⏸ Pause</button>
+                <button class="ctrl-btn ctrl-resume" onclick="resumeSystem()">▶ Resume</button>
+                <button class="ctrl-btn" style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4); color: #f59e0b;" onclick="recalibrateSystem()">🔄 Restart</button>
+            </div>
+        </div>
+        <div id="ai-sidebar-container" style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(56,189,248,0.2); border-radius:12px; background:rgba(15,23,42,0.6);"></div>
+    </aside>
+</main>
+
+<script type="module">
+import {
+    PoseLandmarker,
+    FaceLandmarker,
+    FilesetResolver
+} from "/static/mediapipe/vision_bundle.js";
+
+const CALIB_MS           = 10000;
+const GRACE_MS           = 5000;
+const LATERAL_T          = 0.050;
+const SLOUCH_T           = 0.040;
+const COLLAPSE_T         = 0.10;
+const STILLNESS_LIMIT_MS = 10000;
+const MOVEMENT_SENS      = 0.01;
+const EXPR_MIN = { HAPPY:1.5, SURPRISE:2.0, ANGRY:2.0, SAD:2.0, NEUTRAL:0 };
+
+/* ─── STATE ─────────────────────────────────────────────────── */
+let poseLM = null, faceLM = null;
+let localStream = null, ws = null;
+let pc = null;
+let state_running = false, isPaused = false;
+let calibStart    = null;
+let calibEndedAt  = null;
+let poseFrames    = [], faceFrames = [];
+let poseBaseline  = null, faceBaseline = null;
+let lastMovementTime = Date.now();
+let lastPosition     = null;
+let currentPosture = { status:"POSTURE NORMAL", severity:"NORMAL", alert:false };
+let currentExpr    = { label:"😐 NEUTRAL",      severity:"NORMAL", alert:false };
+
+let _sessionEndedIntentionally = false;
+let _detectionRafId = null;
+
+let _backgroundInterval = null;
+
+let currentSessionId = null;
+let wsReconnectTimer = null;
+let lastTimestampMs = -1;
+let isProcessingFrame = false;
+
+let videoReady = false;
+
+/* ─── LOADING UI HELPERS ────────────────────────────────────── */
+function setStep(id, state, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `load-step ${state}`;
+    const icons = { active:'⏳', done:'✅', error:'❌', '':'⏸' };
+    el.querySelector('.step-icon').textContent = icons[state] || '⏸';
+    if (text) el.childNodes[1].textContent = ' ' + text;
+}
+function setLoadingSub(text) {
+    const el = document.getElementById('loading-sub');
+    if (el) el.textContent = text;
+}
+function showRetry() {
+    const btn = document.getElementById('retry-btn');
+    if (btn) btn.style.display = 'block';
+}
+
+/* ─── ALERT ENGINE ──────────────────────────────────────────── */
+class AlertEngine {
+    constructor() {
+        this.lastAlertTime  = 0;
+        this.cooldownMs     = 5000;
+        this.activeState    = null;
+        this.stateStartTime = null;
+    }
+    process(status, severity, alertFlag) {
+        const now = Date.now();
+        if (!alertFlag) { this.activeState = null; this.stateStartTime = null; return null; }
+        if (this.activeState !== status) { this.activeState = status; this.stateStartTime = now; return null; }
+        const dur = (now - this.stateStartTime) / 1000;
+        if (severity === "CRITICAL" && dur > 2  && now - this.lastAlertTime > this.cooldownMs) {
+            this.lastAlertTime = now; return this._fmt(status, severity, dur);
+        }
+        if (severity === "WARNING"  && dur > 5  && now - this.lastAlertTime > this.cooldownMs) {
+            this.lastAlertTime = now; return this._fmt(status, severity, dur);
+        }
+        return null;
+    }
+    _fmt(status, severity, dur) {
+        const icon = severity === "CRITICAL" ? "🚨" : "⚠️";
+        return `${icon} ALERT\nType: ${status}\nLevel: ${severity}\nDuration: ${Math.floor(dur)}s`;
+    }
+}
+
+const postureAlerts = new AlertEngine();
+const exprAlerts    = new AlertEngine();
+
+/* ─── DOM ───────────────────────────────────────────────────── */
+const video       = document.getElementById('local-video');
+const canvas      = document.getElementById('overlay-canvas');
+const ctx         = canvas.getContext('2d');
+const calibBanner = document.getElementById('calib-banner');
+const calibCount  = document.getElementById('calib-countdown');
+const statusBadge = document.getElementById('status-badge');
+
+/* ─── VIDEO READY TRACKING ──────────────────────────────────── */
+video.addEventListener('loadeddata', () => { videoReady = true; });
+video.addEventListener('playing',    () => { videoReady = true; });
+
+/* ─── MODEL LOADING ─────────────────────────────────────────── */
+async function loadModels() {
+    setLoadingSub("Initializing WebAssembly vision engine…");
+
+    // Load ultra-compressed WASM directly from JSdelivr CDN for maximum speed
+    const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+    );
+
+    const isMobileOrTablet = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+                             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    const defaultDelegate = isMobileOrTablet ? "CPU" : "GPU";
+    console.log(`[MediaPipe] Selected delegate mode: ${defaultDelegate}`);
+
+    setLoadingSub("Downloading AI Models (Parallel)…");
+
+    // Use the official Lite model (2.4MB) instead of the Heavy model (9.4MB) for extreme mobile speed
+    const posePath = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+    const facePath = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+
+    try {
+        // Load BOTH models at the exact same time to halve the network wait time!
+        const [poseResult, faceResult] = await Promise.all([
+            PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: posePath, delegate: defaultDelegate },
+                runningMode: "VIDEO",
+                numPoses: 1,
+                minPoseDetectionConfidence: 0.6,
+                minPosePresenceConfidence:  0.6,
+                minTrackingConfidence:      0.6,
+            }).catch(async (e) => {
+                console.warn(`Pose ${defaultDelegate} failed, trying CPU:`, e);
+                return PoseLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: posePath, delegate: "CPU" },
+                    runningMode: "VIDEO", numPoses: 1
+                });
+            }),
+            
+            FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: facePath, delegate: defaultDelegate },
+                runningMode: "VIDEO",
+                numFaces: 1,
+                minFaceDetectionConfidence: 0.6,
+                minFacePresenceConfidence:  0.6,
+                minTrackingConfidence:      0.6,
+                outputFaceBlendshapes: false,
+                outputFacialTransformationMatrixes: false,
+            }).catch(async (e) => {
+                console.warn(`Face ${defaultDelegate} failed, trying CPU:`, e);
+                return FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: facePath, delegate: "CPU" },
+                    runningMode: "VIDEO", numFaces: 1,
+                    outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false
+                });
+            })
+        ]);
+
+        poseLM = poseResult;
+        faceLM = faceResult;
+        console.log(`✅ MediaPipe models successfully loaded.`);
+        setLoadingSub("Models initialized successfully!");
+        
+    } catch (err) {
+        console.error("Critical error loading models:", err);
+        throw err; // Bubble up to init() catch block
+    }
+}
+
+/* ─── WEBSOCKET ─────────────────────────────────────────────── */
+function connectWS(sid) {
+    if (ws) { try { ws.close(); } catch {} }
+    clearTimeout(wsReconnectTimer);
+
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${window.location.host}/ws/patient/${sid}`);
+
+    ws.onopen = () => {
+        console.log("✅ Patient WS connected");
+        document.getElementById('connection-status').innerText = '● System Live';
+        document.getElementById('connection-status').style.color = '#22c55e';
+        sendPatientVisibility();
+    };
+
+    ws.onmessage = async (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === "control") {
+            if (msg.action === "pause") {
+                isPaused = true;
+                setCameraPaused(true);
+            }
+            if (msg.action === "resume" || msg.action === "ready") {
+                isPaused = false;
+                setCameraPaused(false);
+            }
+            if (msg.action === "ended") {
+                _sessionEndedIntentionally = true;
+                sessionStorage.setItem('dashboard_notice', 'A dashboard was created for the session. Check the profile icon to see info.');
+                alert("The session has been ended by the caregiver.");
+                window.location.replace('/');
+            }
+            return;
+        }
+        else if (msg.type === "caregiver_joined" || msg.type === "request_offer") {
+            console.log("👋 Caregiver signal received — initiating WebRTC...");
+            await initiateWebRTC();
+        }
+        else if (msg.type === "answer") {
+            if (!pc) return;
+            try {
+                const sdpObj = (typeof msg.sdp === "string")
+                    ? { type: "answer", sdp: msg.sdp }
+                    : msg.sdp;
+                await pc.setRemoteDescription(new RTCSessionDescription(sdpObj));
+                console.log("✅ Remote description set from answer");
+            } catch(e) { console.error("setRemoteDescription failed:", e); }
+        }
+        else if (msg.type === "ice") {
+            if (pc && msg.candidate) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }
+                catch(e) { console.warn("addIceCandidate failed:", e); }
+            }
+        }
+    };
+
+    ws.onclose = () => {
+        if (_sessionEndedIntentionally) return;
+        console.warn("⚠️ Patient WS closed — reconnecting in 2s…");
+        document.getElementById('connection-status').innerText = '● Reconnecting…';
+        document.getElementById('connection-status').style.color = '#facc15';
+        wsReconnectTimer = setTimeout(() => connectWS(sid), 2000);
+    };
+
+    ws.onerror = (e) => console.error("WS error:", e);
+}
+
+async function initiateWebRTC() {
+    if (pc) { try { pc.close(); } catch {} pc = null; }
+
+    pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
+        }
+    };
+
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
+        console.log("📤 Offer sent to caregiver");
+    } catch(e) {
+        console.error("Failed to create/send offer:", e);
+    }
+}
+
+function sendPatientVisibility() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+        type: "client_visibility",
+        hidden: document.hidden
+    }));
+}
+
+function sendResult(pStatus, pSev, pAlert, eLabel, eSev, eAlert, calibrating, calibRemaining) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+        type: "result",
+        posture: pStatus,          posture_severity: pSev,    posture_alert: pAlert,
+        expression_label: eLabel,  expression_severity: eSev, expression_alert: eAlert,
+        calibrating,               calib_remaining: calibRemaining,
+    }));
+}
+
+/* ─── MATH HELPERS & METRICS ────────────────────────────────── */
+function median(arr) {
+    const s = [...arr].sort((a,b)=>a-b), m = Math.floor(s.length/2);
+    return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+}
+function scale01(v, min, max) { return (v <= min) ? 0 : (v >= max) ? 1 : (v-min)/(max-min); }
+function ldist(lm, a, b) { return Math.hypot(lm[a].x-lm[b].x, lm[a].y-lm[b].y); }
+
+function getPoseSnap(lm) {
+    return {
+        nose: {x:lm[0].x,  y:lm[0].y},
+        lsh:  {x:lm[11].x, y:lm[11].y},
+        rsh:  {x:lm[12].x, y:lm[12].y},
+        lhip: {x:lm[23].x, y:lm[23].y},
+        rhip: {x:lm[24].x, y:lm[24].y},
+    };
+}
+function buildPoseBaseline(frames) {
+    const b = {};
+    for (const k of Object.keys(frames[0]))
+        b[k] = { x: median(frames.map(f=>f[k].x)), y: median(frames.map(f=>f[k].y)) };
+    return b;
+}
+
+const MT=13,MB=14,ML=61,MR=291,LET=159,LEB=145,RET=386,REB=374,LBI=107,RBI=336,LEC=33,REC=263;
+
+function getFaceSnap(lm) {
+    const sc   = Math.max(ldist(lm,LEC,REC), 0.001);
+    const leye = ldist(lm,LET,LEB) / Math.max(ldist(lm,LEC,133),0.001);
+    const reye = ldist(lm,RET,REB) / Math.max(ldist(lm,REC,362),0.001);
+    return {
+        mouth_gap:     ldist(lm,MT,MB)/sc,
+        corner_avg:    (lm[ML].y+lm[MR].y)/2,
+        left_brow_y:   lm[LBI].y,
+        right_brow_y:  lm[RBI].y,
+        brow_gap:      ldist(lm,LBI,RBI)/sc,
+        avg_eye_ratio: (leye+reye)/2,
+    };
+}
+function buildFaceBaseline(frames) {
+    const b = {};
+    for (const k of Object.keys(frames[0])) b[k] = median(frames.map(f=>f[k]));
+    return b;
+}
+
+/* ─── ANALYSIS ENGINE ───────────────────────────────────────── */
+function analyzePosture(lm) {
+    const m = getPoseSnap(lm);
+    const b = poseBaseline;
+    const currPos = { x: m.nose.x, y: m.nose.y };
+    if (lastPosition) {
+        const movement = Math.abs(currPos.x - lastPosition.x) + Math.abs(currPos.y - lastPosition.y);
+        if (movement > MOVEMENT_SENS) lastMovementTime = Date.now();
+    }
+    lastPosition = currPos;
+
+    const stillForMs = Date.now() - lastMovementTime;
+    if (stillForMs > STILLNESS_LIMIT_MS)
+        return { status:`NO MOVEMENT FOR ${Math.floor(stillForMs/1000)}s`, severity:"CRITICAL", alert:true };
+
+    const avgShY  = (m.lsh.y + m.rsh.y) / 2;
+    const shDrop  = avgShY - ((b.lsh.y + b.rsh.y) / 2);
+    const headDrop= m.nose.y - b.nose.y;
+
+    if (shDrop > COLLAPSE_T || headDrop > COLLAPSE_T)
+        return { status:"COLLAPSE / FALL DETECTED", severity:"CRITICAL", alert:true };
+
+    const noseDeviation = m.nose.x - b.nose.x;
+    if (Math.abs(noseDeviation) > LATERAL_T)
+        return { status:`LEANING ${noseDeviation > 0 ? "LEFT" : "RIGHT"}`, severity:"WARNING", alert:true };
+
+    const narrow = Math.abs(b.lsh.x - b.rsh.x) - Math.abs(m.lsh.x - m.rsh.x);
+    const sigs = [shDrop > SLOUCH_T, headDrop > SLOUCH_T*0.8, narrow > SLOUCH_T*0.5].filter(Boolean).length;
+
+    if (sigs >= 2) return { status:"SLOUCHING DETECTED",  severity:"WARNING", alert:true };
+    if (sigs === 1 && shDrop > SLOUCH_T*0.7) return { status:"POSTURE SHIFTING", severity:"WARNING", alert:true };
+
+    return { status:"POSTURE NORMAL", severity:"NORMAL", alert:false };
+}
+
+function analyzeExpression(lm) {
+    const m = getFaceSnap(lm);
+    const b = faceBaseline;
+    const d = {
+        mouth_gap:       m.mouth_gap,
+        neg_mouth_gap:  -m.mouth_gap,
+        corner_drop:     m.corner_avg - b.corner_avg,
+        neg_corner_drop:-(m.corner_avg - b.corner_avg),
+        brow_move:      ((m.left_brow_y-b.left_brow_y)+(m.right_brow_y-b.right_brow_y))/2,
+        neg_brow_move: -((m.left_brow_y-b.left_brow_y)+(m.right_brow_y-b.right_brow_y))/2,
+        brow_narrow:     b.brow_gap - m.brow_gap,
+        eye_change:      m.avg_eye_ratio - b.avg_eye_ratio,
+        neg_eye_change: -(m.avg_eye_ratio - b.avg_eye_ratio),
+    };
+    const scores = {
+        NEUTRAL:  0,
+        HAPPY:    3.0*scale01(d.neg_corner_drop,0.01,0.03)+1.0*scale01(d.mouth_gap,0.008,0.05)+0.5*scale01(d.neg_brow_move,0,0.01),
+        SURPRISE: 4.0*scale01(d.mouth_gap,0.15,0.40)+1.5*scale01(d.neg_brow_move,0.02,0.06)+1.5*scale01(d.eye_change,0.02,0.06),
+        ANGRY:    3.0*scale01(d.brow_narrow,0.01,0.025)+1.5*scale01(d.brow_move,0.02,0.06)+1.0*scale01(d.corner_drop,0.015,0.045)+1.0*scale01(d.eye_change,0.01,0.035),
+        SAD:      4.0*scale01(d.neg_eye_change,0.06,0.12)+1.0*scale01(d.corner_drop,0.015,0.04)+1.0*scale01(d.brow_move,0.02,0.05)+0.5*scale01(d.neg_mouth_gap,0,0.005),
+    };
+    const valid  = Object.entries(scores).filter(([e,s]) => s >= (EXPR_MIN[e]||0));
+    const winner = valid.reduce((a,b) => a[1]>=b[1] ? a : b, ["NEUTRAL",0])[0];
+    const CFG = {
+        HAPPY:   {emoji:"😊",label:"HAPPY",          alert:false,severity:"NORMAL"},
+        SURPRISE:{emoji:"😮",label:"SURPRISE",       alert:true, severity:"WARNING"},
+        ANGRY:   {emoji:"😠",label:"ANGRY / PAIN",   alert:true, severity:"WARNING"},
+        SAD:     {emoji:"😢",label:"SAD / DISTRESS",  alert:true, severity:"WARNING"},
+        NEUTRAL: {emoji:"😐",label:"NEUTRAL",        alert:false,severity:"NORMAL"},
+    }[winner];
+    return { label:`${CFG.emoji} ${CFG.label}`, rawLabel:CFG.label, severity:CFG.severity, alert:CFG.alert };
+}
+
+async function triggerChatAlert(text) {
+    try {
+        await fetch('/chat/send', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({sender:"System", text})
+        });
+    } catch {}
+}
+
+/* ─── CANVAS OVERLAY ────────────────────────────────────────── */
+let _cachedW = 0, _cachedH = 0;
+function resizeCanvas() {
+    const w = video.clientWidth||640, h = video.clientHeight||480;
+    if (w!==_cachedW||h!==_cachedH) { canvas.width=_cachedW=w; canvas.height=_cachedH=h; }
+}
+window.addEventListener('resize', resizeCanvas);
+video.addEventListener('loadedmetadata', resizeCanvas);
+video.addEventListener('play', resizeCanvas);
+
+function drawOverlay(poseLm, faceLm, pResult, eResult, calibrating, inGrace) {
+    resizeCanvas();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const W=canvas.width, H=canvas.height;
+    const allOk = pResult.severity==="NORMAL" && eResult.severity==="NORMAL";
+    const colour = calibrating ? "#facc15" : inGrace ? "#22c55e" : allOk ? "#22c55e" : "#ef4444";
+
+    if (calibrating) {
+        ctx.strokeStyle="#facc15"; ctx.lineWidth=3; ctx.globalAlpha=0.6;
+        ctx.strokeRect(2,2,W-4,H-4); ctx.globalAlpha=1;
+    }
+
+    const show = calibrating || (!inGrace && !allOk);
+    if (show && faceLm) {
+        const KEYS=[MT,MB,ML,MR,LET,LEB,RET,REB,LBI,RBI,LEC,REC,1,4,152,133,362];
+        ctx.fillStyle=colour; ctx.globalAlpha=0.85;
+        for (const i of KEYS) {
+            if (!faceLm[i]) continue;
+            ctx.beginPath(); ctx.arc(faceLm[i].x*W,faceLm[i].y*H,2,0,Math.PI*2); ctx.fill();
+        }
+        ctx.globalAlpha=1;
+    } else if (calibrating && !faceLm) {
+        ctx.strokeStyle="#facc15"; ctx.lineWidth=1.5; ctx.globalAlpha=0.35;
+        ctx.beginPath(); ctx.ellipse(W*0.5,H*0.38,W*0.10,H*0.15,0,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
+    }
+
+    if (show && poseLm) {
+        ctx.fillStyle=colour; ctx.globalAlpha=0.85;
+        for (const i of [0,7,8,11,12,23,24]) {
+            ctx.beginPath(); ctx.arc(poseLm[i].x*W,poseLm[i].y*H,3,0,Math.PI*2); ctx.fill();
+        }
+        ctx.strokeStyle=colour; ctx.lineWidth=2; ctx.globalAlpha=0.6;
+        for (const [a,b] of [[11,12],[11,23],[12,24],[23,24],[0,11],[0,12]]) {
+            ctx.beginPath(); ctx.moveTo(poseLm[a].x*W,poseLm[a].y*H); ctx.lineTo(poseLm[b].x*W,poseLm[b].y*H); ctx.stroke();
+        }
+        ctx.globalAlpha=1;
+    }
+
+    if (!calibrating) {
+        statusBadge.classList.add('visible');
+        statusBadge.textContent = `${pResult.status}  •  ${eResult.label}`;
+        const ok = inGrace || allOk;
+        statusBadge.style.color  = ok ? "#22c55e" : "#ef4444";
+        statusBadge.style.border = `1px solid ${ok?"#22c55e":"#ef4444"}`;
+    } else {
+        statusBadge.classList.remove('visible');
+    }
+
+    const pEl=document.getElementById('p-status'), eEl=document.getElementById('e-status');
+    const ok = inGrace || calibrating;
+    if (pEl) { pEl.textContent=calibrating?'⏳ Calibrating…':pResult.status; pEl.style.color=(ok||pResult.severity==="NORMAL")?"#22c55e":"#facc15"; }
+    if (eEl) { eEl.textContent=calibrating?'⏳ Calibrating…':eResult.label; eEl.style.color=(ok||eResult.severity==="NORMAL")?"#22c55e":"#facc15"; }
+}
+
+let lastVideoTime = -1;
+
+function processFrame(tsMs) {
+
+    if (!state_running || isPaused)                      return;
+    if (!poseLM || !faceLM || !videoReady)               return;
+    if (video.readyState < 2 || video.videoWidth === 0)  return;
+    if (video.currentTime === lastVideoTime)             return;
+    if (isProcessingFrame)                               return;
+
+    isProcessingFrame = true;
+    try {
+        lastVideoTime = video.currentTime;
+
+        // Ensure timestamp strictly increases (MediaPipe requirement)
+        if (tsMs <= lastTimestampMs) tsMs = lastTimestampMs + 1;
+        lastTimestampMs = tsMs;
+
+        const poseRes = poseLM.detectForVideo(video, tsMs);
+        const faceRes = faceLM.detectForVideo(video, tsMs);
+        const poseLm  = poseRes.landmarks?.[0]     || null;
+        const faceLm  = faceRes.faceLandmarks?.[0] || null;
+
+        const elapsed     = Date.now() - calibStart;
+        const calibrating = elapsed < CALIB_MS;
+        const remaining   = Math.max(0, Math.ceil((CALIB_MS - elapsed) / 1000));
+
+        if (calibrating) {
+            calibBanner.classList.add('visible');
+            calibCount.textContent = remaining;
+            if (poseLm) poseFrames.push(getPoseSnap(poseLm));
+            if (faceLm) faceFrames.push(getFaceSnap(faceLm));
+        } else {
+            calibBanner.classList.remove('visible');
+            if (!poseBaseline && poseFrames.length > 5) {
+                poseBaseline = buildPoseBaseline(poseFrames);
+                lastMovementTime = Date.now();
+            }
+            if (!faceBaseline && faceFrames.length > 5) faceBaseline = buildFaceBaseline(faceFrames);
+            if (!calibEndedAt) calibEndedAt = Date.now();
+        }
+
+        const inGrace = calibEndedAt !== null && (Date.now() - calibEndedAt) < GRACE_MS;
+
+        if (!calibrating && poseBaseline && faceBaseline) {
+            if (poseLm) currentPosture = analyzePosture(poseLm);
+            if (faceLm) currentExpr    = analyzeExpression(faceLm);
+
+            if (!inGrace) {
+                const pFired = postureAlerts.process(currentPosture.status, currentPosture.severity, currentPosture.alert);
+                const eFired = exprAlerts.process(currentExpr.rawLabel, currentExpr.severity, currentExpr.alert);
+                if (pFired) triggerChatAlert(pFired);
+                if (eFired) triggerChatAlert(eFired);
+            }
+
+            sendResult(
+                currentPosture.status, currentPosture.severity, currentPosture.alert,
+                currentExpr.label,     currentExpr.severity,    currentExpr.alert,
+                false, 0
+            );
+        } else if (calibrating) {
+            sendResult("CALIBRATING","NORMAL",false,"⏳ Calibrating","NORMAL",false,true,remaining);
+        }
+
+
+        if (!document.hidden) {
+            drawOverlay(poseLm, faceLm, currentPosture, currentExpr, calibrating, inGrace);
+        }
+    } finally {
+        isProcessingFrame = false;
+    }
+}
+
+/* ─── DETECTION LOOP (foreground — requestAnimationFrame) ───── */
+function detectionLoop(rafTimestamp) {
+    if (!state_running) return;
+    _detectionRafId = requestAnimationFrame(detectionLoop);
+    processFrame(rafTimestamp);
+}
+
+
+function runDetectionFrame() {
+    processFrame(performance.now());
+}
+
+/* ─── VISIBILITY CHANGE: swap rAF ↔ setInterval ─────────────── */
+document.addEventListener('visibilitychange', () => {
+    sendPatientVisibility();
+    if (!state_running) return;
+
+    if (document.hidden) {
+
+        if (_detectionRafId) {
+            cancelAnimationFrame(_detectionRafId);
+            _detectionRafId = null;
+        }
+        if (!_backgroundInterval) {
+            _backgroundInterval = setInterval(runDetectionFrame, 1000);
+            console.log("🔲 Tab hidden — switched to background detection (1 fps)");
+        }
+    } else {
+      
+        if (_backgroundInterval) {
+            clearInterval(_backgroundInterval);
+            _backgroundInterval = null;
+        }
+        if (!_detectionRafId) {
+            _detectionRafId = requestAnimationFrame(detectionLoop);
+            console.log("🟩 Tab visible — switched back to rAF detection");
+        }
+    }
+});
+
+/* ─── INIT ───────────────────────────────────────────────────── */
+async function init() {
+    const loadingOverlay = document.getElementById('model-loading');
+
+    try {
+        setStep('step-camera', 'active', 'Camera access');
+        setLoadingSub('Requesting camera permission…');
+
+        const [streamResult, sessionResult] = await Promise.allSettled([
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    width:      { ideal: 640 },
+                    height:     { ideal: 480 },
+                    frameRate:  { ideal: 30, max: 30 },
+                    facingMode: { ideal: 'user' },
+                },
+                audio: false,
+            }).catch(err => {
+                console.warn("Ideal camera constraints failed, retrying with basic constraints:", err);
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }),
+            fetch('/current-session').then(r => r.json()),
+        ]);
+
+        if (streamResult.status === 'rejected') {
+            const errName = streamResult.reason?.name || 'Error';
+            const errMsg = streamResult.reason?.message || streamResult.reason || 'Unknown error';
+            
+            setStep('step-camera', 'error', 'Camera Error');
+            if (errName === 'NotAllowedError') {
+                setLoadingSub('Permission Blocked: Click the 🔒 lock icon in your URL bar, allow Camera, then click Retry.');
+                setTimeout(() => {
+                    alert('Camera permission was blocked.\n\nTo unblock it:\n1. Click the 🔒 lock icon in your browser address bar.\n2. Turn on the Camera permission.\n3. Click Retry or refresh the page.');
+                }, 100);
+            } else if (errName === 'NotFoundError') {
+                setLoadingSub('No camera found on this device.');
+            } else if (errName === 'NotReadableError') {
+                setLoadingSub('Camera blocked! Check if used by another app, blocked by Windows Privacy Settings, or disabled via keyboard switch/shutter.');
+            } else {
+                setLoadingSub(`Camera error: ${errName} - ${errMsg}`);
+            }
+            showRetry();
+            return;
+        }
+
+        localStream     = streamResult.value;
+        video.srcObject = localStream;
+        setStep('step-camera', 'done', 'Camera ready');
+
+        const videoReadyPromise = new Promise(resolve => {
+            if (video.readyState >= 2) { resolve(); return; }
+            video.addEventListener('loadeddata', resolve, { once: true });
+        });
+
+        const { session_id } = sessionResult.status === 'fulfilled'
+            ? sessionResult.value
+            : { session_id: null };
+
+        if (!session_id) {
+            setStep('step-session', 'error', 'No active session');
+            setLoadingSub('No session found. Please start a session from setup.');
+            showRetry();
+            return;
+        }
+        currentSessionId = session_id;
+        window.currentSessionId = session_id;
+
+        setStep('step-models', 'active', 'Loading AI models');
+        setLoadingSub('Fetching model files…');
+
+        await Promise.all([loadModels(), videoReadyPromise]);
+        setStep('step-models', 'done', 'Models ready');
+
+        setStep('step-session', 'active', 'Starting session');
+        setLoadingSub('Connecting…');
+
+        connectWS(session_id);
+        await fetch(`/ready/${session_id}`, { method: 'POST' });
+        setStep('step-session', 'done', 'Session live');
+
+        loadingOverlay.style.display = 'none';
+
+        calibStart    = Date.now();
+
+        state_running = true;
+
+        _detectionRafId = requestAnimationFrame(detectionLoop);
+
+    } catch (err) {
+        console.error('Init failed:', err);
+        setLoadingSub(`Error: ${err.message || 'Unknown error'}. Please retry.`);
+        showRetry();
+    }
+}
+
+window.retryInit = function() {
+    const btn = document.getElementById('retry-btn');
+    if (btn) btn.style.display = 'none';
+    ['step-camera','step-models','step-session'].forEach(id => setStep(id, '', ''));
+    setStep('step-camera', 'active', 'Camera access');
+    videoReady    = false;
+    lastVideoTime = -1;
+    poseFrames    = [];
+    faceFrames    = [];
+    poseBaseline  = null;
+    faceBaseline  = null;
+    calibEndedAt  = null;
+
+    init();
+};
+
+window.addEventListener('DOMContentLoaded', init);
+
+function setCameraPaused(paused) {
+    const overlay = document.getElementById('camera-pause-overlay');
+    const wrapper = document.querySelector('.video-wrapper');
+    const conn    = document.getElementById('connection-status');
+
+    if (localStream) {
+        localStream.getVideoTracks().forEach((track) => {
+            track.enabled = !paused;
+        });
+    }
+
+    if (overlay) overlay.classList.toggle('visible', paused);
+    if (wrapper) wrapper.classList.toggle('camera-paused', paused);
+
+    if (paused) {
+        if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (conn) {
+            conn.innerText   = '⏸ Camera Paused';
+            conn.style.color = '#facc15';
+        }
+    } else if (state_running && conn) {
+        conn.innerText   = '● System Live';
+        conn.style.color = '#22c55e';
+    }
+}
+
+/* ─── SESSION CONTROLS ──────────────────────────────────────── */
+window.recalibrateSystem = async () => {
+    if (!confirm("Restart calibration to set a new baseline position?")) return;
+    calibStart = Date.now();
+    poseBaseline = null;
+    faceBaseline = null;
+    calibEndedAt = null;
+    
+    if (typeof isPaused !== 'undefined' && isPaused) {
+        await window.resumeSystem();
+    } else {
+        setCameraPaused(false);
+    }
+};
+
+window.pauseSystem = async () => {
+    isPaused = true;
+    setCameraPaused(true);
+    await fetch(`/pause/${currentSessionId}`, { method: 'POST' });
+};
+
+window.resumeSystem = async () => {
+    isPaused = false;
+    setCameraPaused(false);
+    await fetch(`/resume/${currentSessionId}`, { method: 'POST' });
+};
+
+window.leaveSession = async () => {
+    if (!confirm("Leave this session?\n\nYou can rejoin later using the session details on the setup page.")) return;
+
+    _sessionEndedIntentionally = true;
+    state_running = false;
+    isPaused      = true;
+
+
+    if (_detectionRafId)    { cancelAnimationFrame(_detectionRafId); _detectionRafId = null; }
+    if (_backgroundInterval){ clearInterval(_backgroundInterval);    _backgroundInterval = null; }
+
+    if (localStream) {
+        localStream.getTracks().forEach(t => { try { t.stop(); } catch(e) {} });
+        localStream = null;
+    }
+    video.srcObject = null;
+
+    try { await fetch('/patient-leave', { method: 'POST' }); } catch {}
+    clearTimeout(wsReconnectTimer);
+    if (ws) { try { ws.onclose = null; ws.close(); } catch {} ws = null; }
+    if (pc) { try { pc.close(); } catch {} pc = null; }
+
+    document.getElementById('connection-status').innerText   = '🔴 Session left — you can rejoin later';
+    document.getElementById('connection-status').style.color = '#f59e0b';
+    setTimeout(() => window.location.replace('/'), 2000);
+};
+
+window.addEventListener('beforeunload', (e) => {
+    if (state_running && !_sessionEndedIntentionally) {
+        e.preventDefault();
+        e.returnValue = 'Session is active. Are you sure you want to leave?';
+    }
+});
+</script>
+<script src="/static/script.js?v=4"></script>
+<script src="/static/ai_assistant.js?v=4"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    AIAssistant.init();
+    // Provide live chat messages as context for AI
+    AIAssistant.setContextGetter(() => {
+        const box = document.getElementById('live-chat-display');
+        if (!box) return [];
+        return Array.from(box.querySelectorAll('.live-msg')).map(el => ({
+            sender: el.querySelector('small')?.textContent || 'Unknown',
+            message: el.querySelector('p')?.textContent || el.textContent || '',
+            timestamp: '',
+        }));
+    });
+});
+</script>
+
+<!-- Virtual keyboard container (shown on mobile) -->
+<div id="simple-keyboard" style="display:none; position:fixed; bottom:0; left:0; width:100%; z-index:1000;"></div>
+
+</body>
+</html>

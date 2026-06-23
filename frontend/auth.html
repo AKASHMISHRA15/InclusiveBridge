@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>InclusiveBridge Auth</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+
+body {
+    height:100vh;
+    background: linear-gradient(135deg,#0f172a,#1e293b,#0f172a);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    color:white;
+}
+
+.auth-container {
+    width:400px;
+    padding:30px;
+    border-radius:15px;
+    background: rgba(30,41,59,0.9);
+    backdrop-filter: blur(10px);
+    box-shadow:0 10px 30px rgba(0,0,0,0.4);
+    max-height:90vh;
+    overflow-y:auto;
+}
+
+h2 { text-align:center; margin-bottom:20px; color:#38bdf8; }
+
+input, select {
+    width:100%;
+    padding:10px;
+    margin:6px 0;
+    border-radius:8px;
+    border:1px solid #334155;
+    background:#0f172a;
+    color:white;
+    font-size:0.93rem;
+    outline:none;
+    transition:border-color 0.2s;
+}
+
+input:focus, select:focus { border-color:#38bdf8; }
+input::placeholder { color:#64748b; }
+
+button {
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    border:none;
+    border-radius:8px;
+    background: linear-gradient(135deg,#38bdf8,#6366f1);
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    min-height:42px;
+}
+
+button:hover:not(:disabled) { transform:scale(1.02); }
+button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+/* ── FIX 5: Spinner ── */
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.role-btns { display:flex; gap:10px; margin-bottom:6px; }
+
+.role-btns button {
+    flex:1;
+    margin-top:8px;
+    background:#1e293b;
+    border:1px solid #334155;
+    font-weight:500;
+}
+
+.role-btns button.active {
+    background: linear-gradient(135deg,#38bdf8,#6366f1);
+    border-color: transparent;
+}
+
+.conditional-field { display:none; margin-top:4px; }
+
+.conditional-field small {
+    display:block;
+    color:#94a3b8;
+    font-size:11px;
+    margin:4px 2px 0;
+    line-height:1.4;
+}
+
+p.switch-link {
+    text-align:center;
+    margin-top:14px;
+    color:#38bdf8;
+    cursor:pointer;
+    font-size:14px;
+}
+
+p.switch-link:hover { text-decoration: underline; }
+
+/* OTP hint */
+.otp-hint {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+    line-height: 1.5;
+}
+
+.otp-hint strong { color: #38bdf8; }
+
+/* Big OTP input */
+#otp {
+    font-size: 1.6rem;
+    letter-spacing: 0.4em;
+    text-align: center;
+    padding: 14px;
+}
+</style>
+</head>
+<body>
+
+<div class="auth-container">
+    <h2 id="form-title">Login</h2>
+
+    <!-- ── LOGIN ── -->
+    <div id="login-form">
+        <input id="login-email" placeholder="Email" type="email">
+        <div style="position: relative;">
+            <input id="login-password" type="password" placeholder="Password" style="margin: 6px 0; padding-right: 40px;">
+            <span onclick="togglePassword('login-password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; display: flex; align-items: center;" title="Show/Hide Password">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </span>
+        </div>
+
+        <select id="login-role" onchange="toggleLoginRole()">
+            <option value="home">Home</option>
+            <option value="professional">Professional</option>
+        </select>
+
+        <div class="conditional-field" id="login-sp-id-field" style="display:none; margin-top:10px; margin-bottom:15px;">
+            <input id="login-caregiver-id" placeholder="Enter Your ID (e.g. DRSMITH2024)" style="width:100%; padding:11px 14px; border-radius:9px; border:1px solid rgba(56,189,248,0.2); background:#0f172a; color:white; outline:none;">
+            <small style="font-size:0.76rem; color:#94a3b8; display:block; margin-top:6px;">Enter your unique Caregiver ID</small>
+        </div>
+
+        <!-- FIX 5: id added so JS can target it -->
+        <button id="login-btn" onclick="login()">Login</button>
+        <p class="switch-link" onclick="showRegister()">Don't have an account? Register</p>
+        <p class="switch-link" onclick="showForgotPassword()" style="margin-top: 8px; font-size: 13px; color: #94a3b8;">Forgot Password?</p>
+    </div>
+
+    <!-- ── REGISTER ── -->
+    <div id="register-form" style="display:none;">
+
+        <div class="role-btns">
+            <button type="button" onclick="setRole('home')" id="btn-home" class="active">Home</button>
+            <button type="button" onclick="setRole('professional')" id="btn-pro">Professional</button>
+        </div>
+
+        <input id="name" placeholder="Full name">
+        <input id="age" placeholder="Age" type="number">
+
+        <select id="gender">
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer_not">Prefer not to say</option>
+        </select>
+
+        <input id="email" placeholder="Email" type="email">
+        <div style="position: relative;">
+            <input id="password" type="password" placeholder="Password" style="margin: 6px 0; padding-right: 40px;">
+            <span onclick="togglePassword('password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; display: flex; align-items: center;" title="Show/Hide Password">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </span>
+        </div>
+
+        <div class="conditional-field" id="sp-id-field">
+            <input id="caregiver_id" placeholder="Enter Your ID (e.g. DRSMITH2024)">
+            <small>Enter your unique Caregiver ID</small>
+        </div>
+
+        <input type="hidden" id="role" value="home">
+
+        <!-- FIX 5: id added -->
+        <button id="register-btn" onclick="register()">Register</button>
+        <p class="switch-link" onclick="showLogin()">Already have an account? Login</p>
+    </div>
+
+    <!-- ── FORGOT PASSWORD ── -->
+    <div id="forgot-password-form" style="display:none;">
+        <p class="otp-hint" style="margin-bottom: 20px;">
+            Enter your registered email address.<br>We'll send you a 6-digit code to reset your password.
+        </p>
+        <input id="forgot-email" placeholder="Email" type="email">
+        <button id="forgot-btn" onclick="sendForgotPasswordOTP()">Send Code</button>
+        <p class="switch-link" onclick="showLogin()">Back to Login</p>
+    </div>
+
+    <!-- ── RESET PASSWORD ── -->
+    <div id="reset-password-form" style="display:none;">
+        <!-- Step 1: OTP entry -->
+        <div id="reset-step-otp">
+            <p class="otp-hint" style="margin-bottom: 20px;">
+                Enter the <strong>6-digit code</strong> sent to your email.<br>Check your inbox (and spam folder).
+            </p>
+            <input id="reset-otp" placeholder="000000" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="font-size: 1.6rem; letter-spacing: 0.4em; text-align: center; padding: 14px;">
+            <button id="verify-reset-btn" onclick="verifyResetOTP()">Verify Code</button>
+        </div>
+
+        <!-- Step 2: New password (hidden until OTP verified) -->
+        <div id="reset-step-password" style="display:none;">
+            <p class="otp-hint" style="margin-bottom: 16px; color: #4ade80;">
+                ✅ Code verified! Now enter your new password.
+            </p>
+            <div style="position: relative;">
+                <input id="new-password" type="password" placeholder="New Password" style="margin: 6px 0; padding-right: 40px;">
+                <span onclick="togglePassword('new-password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; display: flex; align-items: center;" title="Show/Hide Password">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </span>
+            </div>
+            <button id="reset-btn" onclick="resetPassword()">Change Password</button>
+        </div>
+
+        <p class="switch-link" onclick="showLogin()" style="margin-top: 12px;">Cancel</p>
+    </div>
+
+    <!-- ── OTP ── -->
+    <div id="otp-form" style="display:none;">
+        <p class="otp-hint">
+            We sent a <strong>6-digit code</strong> to your email.<br>
+            Check your inbox (and spam folder).
+        </p>
+        <input id="otp" placeholder="000000" type="text" inputmode="numeric"
+               maxlength="6" autocomplete="one-time-code">
+        <button id="verify-btn" onclick="verifyOTP()">Verify</button>
+        <div id="otp-timer-display" style="text-align:center; color:#94a3b8; font-size:0.85rem; margin-top:14px; font-variant-numeric: tabular-nums;">
+            Code expires in: <strong id="otp-countdown" style="color:#facc15;">05:00</strong>
+        </div>
+    </div>
+<script src="/static/auth.js?v=6"></script>
+<script>
+function togglePassword(id) {
+    const input = document.getElementById(id);
+    if (input.type === "password") {
+        input.type = "text";
+    } else {
+        input.type = "password";
+    }
+}
+</script>
+</body>
+</html>

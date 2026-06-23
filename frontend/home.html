@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<title>InclusiveBridge</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+
+body {
+    min-height:100vh;
+    background: linear-gradient(135deg,#0f172a,#1e293b,#0f172a);
+    color:white;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+}
+
+.install-btn {
+    display:none;
+    position:fixed;
+    top:18px;
+    right:18px;
+    z-index:20;
+    padding:10px 16px;
+    border-radius:10px;
+    border:1px solid rgba(56,189,248,0.55);
+    background:rgba(15,23,42,0.86);
+    color:#e0f2fe;
+    font-weight:700;
+    font-size:0.88rem;
+    cursor:pointer;
+    box-shadow:0 10px 24px rgba(0,0,0,0.28);
+    backdrop-filter:blur(10px);
+    transition:0.2s;
+}
+
+.install-btn:hover {
+    background:rgba(56,189,248,0.18);
+    transform:translateY(-2px);
+}
+
+.install-btn.visible { display:inline-flex; align-items:center; gap:8px; }
+
+.install-toast {
+    display:none;
+    position:fixed;
+    top:70px;
+    right:18px;
+    z-index:21;
+    max-width:280px;
+    padding:12px 14px;
+    border-radius:10px;
+    background:rgba(15,23,42,0.94);
+    border:1px solid rgba(56,189,248,0.35);
+    color:#cbd5e1;
+    font-size:0.84rem;
+    line-height:1.45;
+    box-shadow:0 12px 28px rgba(0,0,0,0.35);
+}
+
+.install-toast.visible { display:block; }
+
+.profile-link {
+    display:none;
+    position:fixed;
+    top:18px;
+    left:18px;
+    z-index:20;
+    align-items:center;
+    gap:10px;
+    padding:9px 13px 9px 9px;
+    border-radius:12px;
+    border:1px solid rgba(56,189,248,0.35);
+    background:rgba(15,23,42,0.86);
+    color:#e0f2fe;
+    text-decoration:none;
+    font-weight:700;
+    font-size:0.86rem;
+    box-shadow:0 10px 24px rgba(0,0,0,0.28);
+    backdrop-filter:blur(10px);
+}
+
+.profile-link.visible { display:inline-flex; }
+
+.profile-avatar {
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg,#38bdf8,#a78bfa);
+    color:#0f172a;
+    font-weight:900;
+}
+
+.dashboard-toast {
+    display:none;
+    position:fixed;
+    left:18px;
+    top:72px;
+    z-index:21;
+    max-width:330px;
+    padding:13px 15px;
+    border-radius:12px;
+    background:rgba(15,23,42,0.95);
+    border:1px solid rgba(56,189,248,0.35);
+    color:#cbd5e1;
+    font-size:0.86rem;
+    line-height:1.45;
+    box-shadow:0 12px 28px rgba(0,0,0,0.35);
+}
+
+.dashboard-toast.visible { display:block; }
+
+.container { max-width:700px; text-align:center; padding:40px 20px; }
+
+h1 { font-size:3.2rem; color:#38bdf8; margin-bottom:20px; }
+
+.description { color:#cbd5e1; line-height:1.7; margin-bottom:50px; font-size:1.05rem; }
+
+.how-it-works { display:flex; gap:20px; justify-content:center; margin-bottom:50px; flex-wrap:wrap; }
+
+.step-card {
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(56,189,248,0.2);
+    border-radius:12px;
+    padding:22px 20px;
+    width:195px;
+    text-align:center;
+    transition:0.3s;
+}
+
+.step-card:hover {
+    border-color:rgba(56,189,248,0.5);
+    background:rgba(56,189,248,0.07);
+    transform:translateY(-4px);
+}
+
+.step-icon { font-size:2rem; margin-bottom:12px; display:block; }
+.step-num  { font-size:0.7rem; letter-spacing:2px; color:#38bdf8; text-transform:uppercase; margin-bottom:6px; }
+.step-card h3 { font-size:0.95rem; font-weight:600; margin-bottom:6px; color:#e2e8f0; }
+.step-card p  { font-size:0.8rem; color:#94a3b8; line-height:1.5; }
+
+.buttons { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+
+.btn {
+    padding:13px 32px;
+    border-radius:10px;
+    text-decoration:none;
+    font-weight:600;
+    font-size:1rem;
+    transition:0.3s;
+    cursor:pointer;
+    border:none;
+    display:inline-block;
+}
+
+.btn-primary   { background:linear-gradient(135deg,#38bdf8,#6366f1); color:white; }
+.btn-secondary { background:transparent; border:1px solid #38bdf8; color:#38bdf8; }
+.btn:hover     { transform:translateY(-3px); box-shadow:0 10px 20px rgba(56,189,248,0.3); }
+.btn-logout    { background:transparent; border:1px solid #ef4444; color:#ef4444; }
+.btn-logout:hover { background:rgba(239,68,68,0.1); box-shadow:0 10px 20px rgba(239,68,68,0.2); }
+
+.overlay {
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    backdrop-filter:blur(4px);
+    z-index:100;
+    justify-content:center;
+    align-items:center;
+}
+
+.overlay.active { display:flex; }
+
+.modal {
+    background:linear-gradient(145deg,#1e293b,#0f172a);
+    border:1px solid rgba(56,189,248,0.25);
+    border-radius:18px;
+    padding:36px 32px;
+    width:100%;
+    max-width:460px;
+    margin:20px;
+    animation:popIn 0.2s ease;
+}
+
+@keyframes popIn {
+    from { transform:scale(0.92); opacity:0; }
+    to   { transform:scale(1);    opacity:1; }
+}
+
+.modal h2 { text-align:center; font-size:1.4rem; color:#38bdf8; margin-bottom:8px; }
+.modal p  { text-align:center; font-size:0.88rem; color:#94a3b8; margin-bottom:28px; }
+
+.choice-grid { display:flex; flex-direction:column; gap:14px; margin-bottom:20px; }
+
+.choice-card {
+    display:flex;
+    align-items:flex-start;
+    gap:16px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(56,189,248,0.15);
+    border-radius:12px;
+    padding:18px 20px;
+    cursor:pointer;
+    transition:0.25s;
+    text-align:left;
+    text-decoration:none;
+    color:inherit;
+}
+
+.choice-card:hover {
+    background:rgba(56,189,248,0.08);
+    border-color:rgba(56,189,248,0.45);
+    transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(56,189,248,0.15);
+}
+
+.choice-card .cc-icon  { font-size:2rem; flex-shrink:0; margin-top:2px; }
+.choice-card .cc-title { font-size:1rem; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
+.choice-card .cc-desc  { font-size:0.82rem; color:#94a3b8; line-height:1.5; }
+
+.modal-cancel {
+    width:100%;
+    background:none;
+    border:none;
+    color:#64748b;
+    font-size:0.88rem;
+    cursor:pointer;
+    padding:8px;
+    border-radius:8px;
+    transition:0.2s;
+}
+.modal-cancel:hover { color:#94a3b8; background:rgba(255,255,255,0.04); }
+</style>
+</head>
+<body>
+
+<button id="install-app-btn" class="install-btn" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Install App
+</button>
+<a id="profile-link" class="profile-link" href="/profile" aria-label="Open profile">
+    <span id="profile-avatar" class="profile-avatar">
+        <!-- Shows initials when logged in; falls back to person icon -->
+        <svg id="profile-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+        </svg>
+    </span>
+    <span id="profile-text">Profile</span>
+</a>
+<div id="install-toast" class="install-toast"></div>
+<div id="dashboard-toast" class="dashboard-toast"></div>
+
+<div class="container">
+    <h1>InclusiveBridge</h1>
+
+    <p class="description">
+        InclusiveBridge is an intelligent monitoring system designed to assist patients
+        and caregivers through real-time posture detection, facial expression analysis,
+        and instant alert communication. It ensures safety, responsiveness, and seamless
+        interaction between patients and distant family members or caregivers.
+    </p>
+
+    <div class="how-it-works">
+        <div class="step-card">
+            <span class="step-icon">📋</span>
+            <div class="step-num">Step 01</div>
+            <h3>Register</h3>
+            <p>Create an account as a professional or home user.</p>
+        </div>
+        <div class="step-card">
+            <span class="step-icon">📷</span>
+            <div class="step-num">Step 02</div>
+            <h3>Set up monitoring</h3>
+            <p>Patient enters details and gets a session ID to share.</p>
+        </div>
+        <div class="step-card">
+            <span class="step-icon">👁️</span>
+            <div class="step-num">Step 03</div>
+            <h3>Monitor remotely</h3>
+            <p>Family searches patient, enters sp_id and monitors live.</p>
+        </div>
+    </div>
+
+    <div class="buttons">
+        <a href="/auth" class="btn btn-secondary" id="auth-btn">Register / Login</a>
+        <button onclick="handleStart()" class="btn btn-primary">Start Monitoring</button>
+        <button onclick="handleLogout()" class="btn btn-logout" id="logout-btn" style="display:none;">Logout</button>
+    </div>
+</div>
+
+<!-- CHOICE MODAL -->
+<div class="overlay" id="choice-overlay">
+    <div class="modal">
+        <h2>What would you like to do?</h2>
+        <p>Choose how you want to use InclusiveBridge right now</p>
+
+        <div class="choice-grid">
+            <a href="/setup" class="choice-card">
+                <span class="cc-icon">📷</span>
+                <div>
+                    <div class="cc-title">Set up patient monitor</div>
+                    <div class="cc-desc">Enter patient details, create a special ID, and start a live session you can share with distant family members.</div>
+                </div>
+            </a>
+            <a href="/monitor" class="choice-card">
+                <span class="cc-icon">👁️</span>
+                <div>
+                    <div class="cc-title">Monitor a patient</div>
+                    <div class="cc-desc">Search for a patient using their details or session ID, then enter the sp_id to access their live monitoring feed.</div>
+                </div>
+            </a>
+        </div>
+
+        <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+    </div>
+</div>
+
+<script>
+let deferredInstallPrompt = null;
+
+function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function showInstallButton() {
+    if (isStandaloneApp()) return;
+    document.getElementById('install-app-btn')?.classList.add('visible');
+}
+
+function hideInstallButton() {
+    document.getElementById('install-app-btn')?.classList.remove('visible');
+}
+
+function showInstallToast(message) {
+    const toast = document.getElementById('install-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('visible'), 4200);
+}
+
+function initials(name) {
+    return (name || '?').split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
+}
+
+function showDashboardToast(message) {
+    const toast = document.getElementById('dashboard-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('visible'), 7000);
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    showInstallButton();
+});
+
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    hideInstallButton();
+    showInstallToast('InclusiveBridge installed successfully.');
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+    if (!isStandaloneApp()) showInstallButton();
+
+    document.getElementById('install-app-btn')?.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) {
+            showInstallToast('Open your browser menu and choose Install app or Add to Home screen.');
+            return;
+        }
+
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        if (choice.outcome === 'accepted') {
+            hideInstallButton();
+        }
+    });
+
+    fetch('/auth/check')
+        .then(r => r.json())
+        .then(data => {
+            if (data.authenticated) {
+                document.getElementById('logout-btn').style.display = 'inline-block';
+                document.getElementById('auth-btn').style.display   = 'none';
+                document.getElementById('profile-link')?.classList.add('visible');
+                // Keep the profile icon and show the user's first name
+                const profileText = document.getElementById('profile-text');
+                if (profileText && data.name) {
+                    profileText.textContent = data.name.split(' ')[0];
+                }
+                fetch('/api/dashboard-notice')
+                    .then(r => r.json())
+                    .then(info => { if (info.notice) showDashboardToast(info.notice); })
+                    .catch(() => {});
+            }
+        })
+        .catch(() => {});
+
+    const patientNotice = sessionStorage.getItem('dashboard_notice');
+    if (patientNotice) {
+        sessionStorage.removeItem('dashboard_notice');
+        showDashboardToast(patientNotice);
+    }
+
+    if (sessionStorage.getItem('show_modal_on_home') === '1') {
+        sessionStorage.removeItem('show_modal_on_home');
+        fetch('/auth/check')
+            .then(r => r.json())
+            .then(data => { if (data.authenticated) openModal(); })
+            .catch(() => {});
+    }
+});
+
+function handleStart() {
+    fetch('/auth/check')
+        .then(r => r.json())
+        .then(data => {
+            if (data.authenticated) {
+                openModal();
+            } else {
+
+                sessionStorage.setItem('post_login_redirect', 'open_modal');
+                window.location.href = '/auth';
+            }
+        })
+        .catch(() => { window.location.href = '/auth'; });
+}
+
+async function handleLogout() {
+    await fetch('/logout', { method: 'POST' });
+    document.getElementById('logout-btn').style.display = 'none';
+    document.getElementById('auth-btn').style.display   = 'inline-block';
+    document.getElementById('profile-link')?.classList.remove('visible');
+}
+
+function openModal()  { document.getElementById('choice-overlay').classList.add('active'); }
+function closeModal() { document.getElementById('choice-overlay').classList.remove('active'); }
+
+document.getElementById('choice-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>

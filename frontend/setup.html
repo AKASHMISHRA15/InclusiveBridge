@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PatientBridge | Set Up Monitor</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+
+body {
+    min-height:100vh;
+    background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);
+    color:white;
+    display:flex;
+    flex-direction:column;
+}
+
+/* ── NAV ── */
+.navbar {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 36px;
+    border-bottom:1px solid rgba(56,189,248,0.15);
+    background:rgba(15,23,42,0.8);
+    backdrop-filter:blur(8px);
+    position:sticky;
+    top:0;
+    z-index:10;
+}
+
+.navbar h1 {
+    font-size:1.3rem;
+    color:#38bdf8;
+    font-weight:700;
+    letter-spacing:-0.3px;
+}
+
+.navbar h1 span { font-size:0.75rem; color:#64748b; margin-left:6px; font-weight:400; }
+
+.nav-back {
+    background:none;
+    border:1px solid rgba(56,189,248,0.3);
+    color:#38bdf8;
+    padding:8px 18px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:0.88rem;
+    transition:0.2s;
+    text-decoration:none;
+}
+
+.nav-back:hover { background:rgba(56,189,248,0.1); }
+
+/* ── MAIN ── */
+.page-body {
+    flex:1;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    padding:48px 20px;
+}
+
+.form-wrapper {
+    width:100%;
+    max-width:520px;
+}
+
+.form-header {
+    text-align:center;
+    margin-bottom:36px;
+}
+
+.form-header .icon {
+    font-size:2.8rem;
+    display:block;
+    margin-bottom:14px;
+}
+
+.form-header h2 {
+    font-size:1.8rem;
+    color:#38bdf8;
+    margin-bottom:8px;
+}
+
+.form-header p {
+    color:#94a3b8;
+    font-size:0.9rem;
+    line-height:1.6;
+}
+
+/* ── CARD ── */
+.card {
+    background:rgba(30,41,59,0.85);
+    border:1px solid rgba(56,189,248,0.18);
+    border-radius:16px;
+    padding:32px;
+    backdrop-filter:blur(10px);
+}
+
+.field {
+    margin-bottom:20px;
+}
+
+.field label {
+    display:block;
+    font-size:0.82rem;
+    color:#94a3b8;
+    margin-bottom:7px;
+    letter-spacing:0.3px;
+}
+
+.field label .opt {
+    font-size:0.75rem;
+    color:#475569;
+    margin-left:4px;
+}
+
+.field input,
+.field select {
+    width:100%;
+    padding:11px 14px;
+    border-radius:9px;
+    border:1px solid rgba(56,189,248,0.2);
+    background:#0f172a;
+    color:white;
+    font-size:0.95rem;
+    transition:border-color 0.2s;
+    outline:none;
+}
+
+.field input:focus,
+.field select:focus {
+    border-color:#38bdf8;
+    box-shadow:0 0 0 3px rgba(56,189,248,0.1);
+}
+
+.field input::placeholder { color:#475569; }
+
+.field .hint {
+    font-size:0.76rem;
+    color:#475569;
+    margin-top:6px;
+    line-height:1.4;
+}
+
+.row2 {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+}
+
+/* ── TABS ── */
+.setup-tabs {
+    display:flex;
+    gap:10px;
+    margin-bottom:24px;
+}
+
+.tab-btn {
+    flex:1;
+    padding:12px;
+    background:rgba(15,23,42,0.6);
+    border:1px solid rgba(56,189,248,0.2);
+    color:#94a3b8;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+    font-size:0.9rem;
+    transition:0.2s;
+}
+
+.tab-btn.active {
+    background:rgba(56,189,248,0.1);
+    border-color:#38bdf8;
+    color:#38bdf8;
+}
+
+/* ── SP_ID BOX ── */
+.spid-box {
+    background:rgba(56,189,248,0.06);
+    border:1px solid rgba(56,189,248,0.25);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:20px;
+}
+
+.spid-box .spid-label {
+    font-size:0.78rem;
+    color:#38bdf8;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    margin-bottom:8px;
+    font-weight:600;
+}
+
+.spid-box input {
+    width:100%;
+    padding:11px 14px;
+    border-radius:9px;
+    border:1px solid rgba(56,189,248,0.3);
+    background:#0f172a;
+    color:#38bdf8;
+    font-size:1rem;
+    font-family:'Courier New',monospace;
+    letter-spacing:1px;
+    outline:none;
+    transition:border-color 0.2s;
+}
+
+.spid-box input:focus {
+    border-color:#38bdf8;
+    box-shadow:0 0 0 3px rgba(56,189,248,0.1);
+}
+
+.spid-box input::placeholder { color:#334155; }
+
+.spid-box .spid-hint {
+    font-size:0.76rem;
+    color:#64748b;
+    margin-top:8px;
+    line-height:1.5;
+}
+
+/* ── SUBMIT ── */
+.btn-submit {
+    width:100%;
+    padding:13px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,#38bdf8,#6366f1);
+    color:white;
+    font-size:1rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.3s;
+    margin-top:6px;
+}
+
+.btn-submit:hover {
+    transform:translateY(-2px);
+    box-shadow:0 10px 24px rgba(56,189,248,0.3);
+}
+
+.btn-submit:disabled {
+    opacity:0.6;
+    cursor:not-allowed;
+    transform:none;
+}
+
+/* ── SESSION CREATED STATE ── */
+.session-result {
+    display:none;
+    text-align:center;
+    padding:8px 0;
+}
+
+.session-result.visible { display:block; }
+
+.success-icon {
+    font-size:3rem;
+    display:block;
+    margin-bottom:12px;
+}
+
+.session-result h3 {
+    font-size:1.3rem;
+    color:#38bdf8;
+    margin-bottom:6px;
+}
+
+.session-result p {
+    font-size:0.88rem;
+    color:#94a3b8;
+    margin-bottom:24px;
+}
+
+.share-box {
+    background:#0f172a;
+    border:1px solid rgba(56,189,248,0.2);
+    border-radius:12px;
+    padding:20px;
+    margin-bottom:16px;
+    text-align:center;
+}
+
+.share-box .share-label {
+    font-size:0.75rem;
+    color:#64748b;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    margin-bottom:8px;
+}
+
+.share-box .share-value {
+    font-size:1.6rem;
+    font-family:'Courier New',monospace;
+    color:#38bdf8;
+    letter-spacing:4px;
+    font-weight:700;
+}
+
+.share-box .share-sub {
+    font-size:0.75rem;
+    color:#475569;
+    margin-top:6px;
+}
+
+.spid-reveal {
+    display:inline-block;
+    background:rgba(56,189,248,0.1);
+    border:1px solid rgba(56,189,248,0.3);
+    border-radius:8px;
+    padding:6px 16px;
+    font-family:'Courier New',monospace;
+    color:#38bdf8;
+    font-size:1rem;
+    letter-spacing:2px;
+    margin-bottom:24px;
+}
+
+.btn-go {
+    display:block;
+    width:100%;
+    padding:13px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,#38bdf8,#6366f1);
+    color:white;
+    font-size:1rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.3s;
+    text-decoration:none;
+    text-align:center;
+    margin-bottom:10px;
+}
+
+.btn-go:hover {
+    transform:translateY(-2px);
+    box-shadow:0 10px 24px rgba(56,189,248,0.3);
+}
+
+.btn-outline {
+    display:block;
+    width:100%;
+    padding:11px;
+    border:1px solid rgba(56,189,248,0.3);
+    border-radius:10px;
+    background:none;
+    color:#38bdf8;
+    font-size:0.95rem;
+    cursor:pointer;
+    transition:0.2s;
+    text-align:center;
+}
+
+.btn-outline:hover { background:rgba(56,189,248,0.08); }
+
+/* ── ROLE ERROR NOTICE ── */
+.role-notice {
+    display:none;
+    background:rgba(239,68,68,0.1);
+    border:1px solid rgba(239,68,68,0.35);
+    border-radius:10px;
+    padding:16px 18px;
+    color:#fca5a5;
+    font-size:0.88rem;
+    line-height:1.6;
+    margin-bottom:16px;
+}
+
+.role-notice.visible { display:block; }
+
+select option { background:#1e293b; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>PatientBridge <span>v1.0</span></h1>
+    <a href="/" class="nav-back">← Back to home</a>
+</nav>
+
+<div class="page-body">
+    <div class="form-wrapper">
+
+        <div class="form-header">
+            <span class="icon">📷</span>
+            <h2>Set up patient monitor</h2>
+            <p>Fill in the patient details below to create a live monitoring session.<br>
+               Share the generated session ID and sp_id with family members.</p>
+        </div>
+
+        <div class="card">
+            <div class="setup-tabs" id="setup-tabs">
+                <button class="tab-btn active" id="tab-new" onclick="switchTab('new')">Start New Session</button>
+                <button class="tab-btn" id="tab-join" onclick="switchTab('join')">Join Existing Session</button>
+            </div>
+
+            <!-- ── SETUP FORM ── -->
+            <div id="setup-form">
+                <div class="row2">
+                    <div class="field">
+                        <label>Full name</label>
+                        <input type="text" id="pt-name" placeholder="Patient's full name">
+                    </div>
+                    <div class="field">
+                        <label>Age</label>
+                        <input type="number" id="pt-age" placeholder="e.g. 65" min="1" max="120">
+                    </div>
+                </div>
+
+                <div class="row2">
+                    <div class="field">
+                        <label>Gender</label>
+                        <select id="pt-gender">
+                            <option value="">Select gender</option>
+                            <option>Male</option>
+                            <option>Female</option>
+                            <option>Other</option>
+                            <option>Prefer not to say</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <!-- FIX: date is display-only — not sent to backend.
+                             Label updated to reflect this clearly. -->
+                        <label>Date <span class="opt">(today)</span></label>
+                        <input type="date" id="pt-date" readonly
+                               style="opacity:0.5;cursor:default;"
+                               title="Automatically recorded by the server">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Type of disease / condition <span class="opt">(optional)</span></label>
+                    <input type="text" id="pt-disease" placeholder="e.g. Parkinson's, Stroke recovery">
+                    <div class="hint">Leave blank if you prefer to keep this private.</div>
+                </div>
+
+                <div class="spid-box">
+                    <div class="spid-label">Special ID (sp_id)</div>
+                    <input type="text" id="pt-spid" placeholder="e.g. MYFAMILY2024" maxlength="30">
+                    <div class="spid-hint">
+                        Create a private ID and share it only with trusted family members.
+                        They will need this to access your live monitoring feed.
+                    </div>
+                </div>
+
+                <button class="btn-submit" id="confirm-btn" onclick="confirmSetup()">
+                    Confirm and start session
+                </button>
+            </div>
+
+            <!-- ── JOIN FORM ── -->
+            <div id="join-form" style="display:none;">
+                <div style="display:flex; gap:10px; margin-bottom:16px;">
+                    <button class="tab-btn active" style="padding:8px; font-size:0.8rem;" id="subtab-quick" onclick="switchSubTab('quick')">Quick Rejoin</button>
+                    <button class="tab-btn" style="padding:8px; font-size:0.8rem;" id="subtab-search" onclick="switchSubTab('search')">Find by Details</button>
+                </div>
+
+                <div id="join-quick">
+                    <div class="field">
+                        <label>Session ID</label>
+                        <input type="text" id="join-sid" placeholder="e.g. SES-123456">
+                    </div>
+                    <div class="field">
+                        <label>Special ID (sp_id)</label>
+                        <input type="text" id="join-spid-quick" placeholder="Your private ID">
+                    </div>
+                    <button class="btn-submit" id="btn-rejoin-quick" onclick="rejoinSession()">Rejoin Session</button>
+                </div>
+
+                <div id="join-search" style="display:none;">
+                    <div class="row2">
+                        <div class="field">
+                            <label>Full name</label>
+                            <input type="text" id="join-name" placeholder="Patient's full name">
+                        </div>
+                        <div class="field">
+                            <label>Age <span class="opt">(optional)</span></label>
+                            <input type="number" id="join-age" placeholder="e.g. 65">
+                        </div>
+                    </div>
+                    <div class="row2">
+                        <div class="field">
+                            <label>Gender <span class="opt">(optional)</span></label>
+                            <select id="join-gender">
+                                <option value="">Select gender</option>
+                                <option>Male</option>
+                                <option>Female</option>
+                                <option>Other</option>
+                                <option>Prefer not to say</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Date Session Created</label>
+                            <input type="date" id="join-date">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Special ID (sp_id)</label>
+                        <input type="text" id="join-spid-search" placeholder="Your private ID">
+                    </div>
+                    <button class="btn-submit" id="btn-rejoin-search" onclick="rejoinSessionByInfo()">Find & Rejoin</button>
+                </div>
+            </div>
+
+            <!-- ── SESSION CREATED ── -->
+            <div class="session-result" id="session-result">
+                <span class="success-icon">✅</span>
+                <h3>Session created!</h3>
+                <p>Share the details below with your family members so they can monitor you remotely.</p>
+
+                <div class="share-box">
+                    <div class="share-label">Session ID (auto-generated)</div>
+                    <div class="share-value" id="display-session-id">—</div>
+                    <div class="share-sub">Family can use this to find your session</div>
+                </div>
+
+                <div class="share-label" style="font-size:0.8rem;color:#64748b;margin-bottom:6px;">Your special ID (sp_id)</div>
+                <div class="spid-reveal" id="display-spid">—</div>
+
+                <div style="font-size:0.82rem;color:#64748b;margin-bottom:24px;">
+                    Patient: <span id="display-pt-info" style="color:#cbd5e1;"></span>
+                </div>
+
+                <!-- FIX: role-notice shown when user is not a "home" role patient -->
+                <div class="role-notice" id="role-notice">
+                    ⚠️ Your account is registered as a <strong>Professional / Caregiver</strong>.
+                    The live monitoring page is for <strong>Home / Patient</strong> accounts only.
+                    Please log in with a patient account, or ask the patient to open the link on their device.
+                </div>
+
+                <button class="btn-go" id="go-btn" onclick="goToMonitor()">Go to live monitoring →</button>
+                <a href="/" class="btn-outline">Back to home</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+
+document.getElementById('pt-date').value = new Date().toISOString().split('T')[0];
+
+let _userRole = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+    fetch('/auth/check')
+        .then(r => r.json())
+        .then(data => {
+
+            _userRole = data.role || null;
+        })
+        .catch(() => {});
+});
+
+function switchTab(tab) {
+    document.getElementById('tab-new').classList.toggle('active', tab === 'new');
+    document.getElementById('tab-join').classList.toggle('active', tab === 'join');
+    document.getElementById('setup-form').style.display = tab === 'new' ? 'block' : 'none';
+    document.getElementById('join-form').style.display = tab === 'join' ? 'block' : 'none';
+    document.getElementById('session-result').classList.remove('visible');
+}
+
+function switchSubTab(sub) {
+    document.getElementById('subtab-quick').classList.toggle('active', sub === 'quick');
+    document.getElementById('subtab-search').classList.toggle('active', sub === 'search');
+    document.getElementById('join-quick').style.display = sub === 'quick' ? 'block' : 'none';
+    document.getElementById('join-search').style.display = sub === 'search' ? 'block' : 'none';
+}
+
+async function confirmSetup() {
+    const name    = document.getElementById('pt-name').value.trim();
+    const age     = document.getElementById('pt-age').value.trim();
+    const gender  = document.getElementById('pt-gender').value;
+    const disease = document.getElementById('pt-disease').value.trim();
+    const spid    = document.getElementById('pt-spid').value.trim();
+
+    if (!name || !age || !spid) {
+        alert('Please fill in name, age, and special ID before continuing.');
+        return;
+    }
+
+    const btn = document.getElementById('confirm-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Starting session...';
+
+    try {
+
+        const res = await fetch('/start-session', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ name, age, gender, disease, sp_id: spid })
+        });
+
+        const data = await res.json();
+
+        if (!data.session_id) {
+            alert(data.message || 'Server failed to create a session. Please try again.');
+            btn.disabled    = false;
+            btn.textContent = 'Confirm and start session';
+            return;
+        }
+
+        const sessionId = data.session_id;
+
+        // Populate result panel
+        document.getElementById('display-session-id').textContent = sessionId;
+        document.getElementById('display-spid').textContent       = spid;
+        document.getElementById('display-pt-info').textContent    =
+            name + ', ' + age +
+            (gender  ? ', ' + gender   : '') +
+            (disease ? ' — ' + disease : '');
+
+        const authRes  = await fetch('/auth/check');
+        const authData = await authRes.json();
+        // Allow professional roles to proceed without disabling the button
+
+        document.getElementById('setup-form').style.display = 'none';
+        document.getElementById('session-result').classList.add('visible');
+
+    } catch (err) {
+        btn.disabled    = false;
+        btn.textContent = 'Confirm and start session';
+        alert('Failed to start session. Please try again.');
+    }
+}
+
+async function rejoinSession() {
+    const sid  = document.getElementById('join-sid').value.trim();
+    const spid = document.getElementById('join-spid-quick').value.trim();
+
+    if (!sid || !spid) {
+        alert('Please enter Session ID and Special ID.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-rejoin-quick');
+    btn.disabled = true;
+    btn.textContent = 'Joining...';
+
+    try {
+        const res = await fetch('/rejoin-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sid, sp_id: spid })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            document.getElementById('join-form').style.display = 'none';
+            document.getElementById('setup-tabs').style.display = 'none';
+            document.getElementById('session-result').classList.add('visible');
+            document.querySelector('#session-result h3').textContent = 'Session Rejoined!';
+            document.querySelector('#session-result p').textContent = 'You have successfully rejoined your monitoring session.';
+            document.getElementById('display-session-id').textContent = data.session_id;
+            document.getElementById('display-spid').textContent = spid;
+            document.getElementById('display-pt-info').textContent = 'Resumed existing session';
+        } else {
+            alert(data.message || 'Failed to rejoin session.');
+        }
+    } catch (err) {
+        alert('Network error. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Rejoin Session';
+    }
+}
+
+async function rejoinSessionByInfo() {
+    const name   = document.getElementById('join-name').value.trim();
+    const age    = document.getElementById('join-age').value.trim();
+    const gender = document.getElementById('join-gender').value;
+    const date   = document.getElementById('join-date').value;
+    const spid   = document.getElementById('join-spid-search').value.trim();
+
+    if (!name || !date || !spid) {
+        alert('Please enter at least Name, Date, and Special ID.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-rejoin-search');
+    btn.disabled = true;
+    btn.textContent = 'Searching...';
+
+    try {
+        const res = await fetch('/rejoin-session-by-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, age, gender, date, sp_id: spid })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            document.getElementById('join-form').style.display = 'none';
+            document.getElementById('setup-tabs').style.display = 'none';
+            document.getElementById('session-result').classList.add('visible');
+            document.querySelector('#session-result h3').textContent = 'Session Found!';
+            document.querySelector('#session-result p').textContent = 'We found your session. You can now resume monitoring.';
+            document.getElementById('display-session-id').textContent = data.session_id;
+            document.getElementById('display-spid').textContent = spid;
+            document.getElementById('display-pt-info').textContent = name + ' (Rejoined)';
+        } else {
+            alert(data.message || 'Failed to find session.');
+        }
+    } catch (err) {
+        alert('Network error. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Find & Rejoin';
+    }
+}
+
+function goToMonitor() {
+    window.location.href = '/patient';
+}
+</script>
+</body>
+</html>

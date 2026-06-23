@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PatientBridge | Monitor Patient</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+body { min-height:100vh; background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a); color:white; display:flex; flex-direction:column; }
+.navbar { display:flex; align-items:center; justify-content:space-between; padding:18px 36px; border-bottom:1px solid rgba(56,189,248,0.15); background:rgba(15,23,42,0.8); backdrop-filter:blur(8px); position:sticky; top:0; z-index:10; }
+.navbar h1 { font-size:1.3rem; color:#38bdf8; font-weight:700; }
+.navbar h1 span { font-size:0.75rem; color:#64748b; margin-left:6px; font-weight:400; }
+.nav-back { background:none; border:1px solid rgba(56,189,248,0.3); color:#38bdf8; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.88rem; transition:0.2s; text-decoration:none; }
+.nav-back:hover { background:rgba(56,189,248,0.1); }
+.page-body { flex:1; display:flex; justify-content:center; align-items:flex-start; padding:48px 20px; }
+.wrapper { width:100%; max-width:540px; }
+.form-header { text-align:center; margin-bottom:36px; }
+.form-header .icon { font-size:2.8rem; display:block; margin-bottom:14px; }
+.form-header h2 { font-size:1.8rem; color:#38bdf8; margin-bottom:8px; }
+.form-header p { color:#94a3b8; font-size:0.9rem; line-height:1.6; }
+.card { background:rgba(30,41,59,0.85); border:1px solid rgba(56,189,248,0.18); border-radius:16px; padding:32px; backdrop-filter:blur(10px); margin-bottom:16px; }
+.card-title { font-size:0.78rem; color:#38bdf8; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:18px; display:flex; align-items:center; gap:8px; }
+.card-title::after { content:''; flex:1; height:1px; background:rgba(56,189,248,0.15); }
+.field { margin-bottom:18px; }
+.field label { display:block; font-size:0.82rem; color:#94a3b8; margin-bottom:7px; }
+.field input, .field select { width:100%; padding:11px 14px; border-radius:9px; border:1px solid rgba(56,189,248,0.2); background:#0f172a; color:white; font-size:0.95rem; transition:border-color 0.2s; outline:none; }
+.field input:focus, .field select:focus { border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,0.1); }
+.field input::placeholder { color:#475569; }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+select option { background:#1e293b; }
+.or-divider { display:flex; align-items:center; gap:12px; margin:24px 0; color:#475569; font-size:0.82rem; }
+.or-divider::before, .or-divider::after { content:''; flex:1; height:1px; background:rgba(56,189,248,0.12); }
+.btn-search { width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(135deg,#38bdf8,#6366f1); color:white; font-size:0.95rem; font-weight:600; cursor:pointer; transition:0.3s; }
+.btn-search:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(56,189,248,0.3); }
+.btn-search:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+.btn-outline { width:100%; padding:12px; border:1px solid rgba(56,189,248,0.3); border-radius:10px; background:none; color:#38bdf8; font-size:0.95rem; cursor:pointer; transition:0.2s; }
+.btn-outline:hover { background:rgba(56,189,248,0.08); }
+.session-input { font-family:'Courier New',monospace; letter-spacing:2px; color:#38bdf8 !important; }
+.notice { background:rgba(56,189,248,0.07); border:1px solid rgba(56,189,248,0.2); border-radius:9px; padding:12px 14px; font-size:0.82rem; color:#94a3b8; line-height:1.5; margin-bottom:20px; }
+.notice strong { color:#38bdf8; }
+.results-section { display:none; margin-top:20px; }
+.results-section.visible { display:block; }
+.results-label { font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+.no-results { text-align:center; color:#475569; font-size:0.88rem; padding:16px 0; }
+.result-card { display:flex; align-items:center; gap:14px; background:rgba(15,23,42,0.7); border:1px solid rgba(56,189,248,0.15); border-radius:11px; padding:14px 16px; margin-bottom:8px; transition:0.2s; }
+.result-card:hover { border-color:rgba(56,189,248,0.35); }
+.r-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(99,102,241,0.2)); border:1px solid rgba(56,189,248,0.3); display:flex; align-items:center; justify-content:center; font-size:0.9rem; font-weight:600; color:#38bdf8; flex-shrink:0; }
+.r-info { flex:1; }
+.r-name { font-size:0.95rem; font-weight:600; color:#e2e8f0; margin-bottom:2px; }
+.r-meta { font-size:0.8rem; color:#64748b; }
+.r-select { background:none; border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:0.82rem; padding:6px 14px; border-radius:7px; cursor:pointer; transition:0.2s; white-space:nowrap; }
+.r-select:hover { background:rgba(56,189,248,0.1); }
+.spid-entry { display:none; margin-top:16px; }
+.spid-entry.visible { display:block; }
+.spid-entry-inner { border-top:1px solid rgba(56,189,248,0.15); padding-top:20px; }
+.spid-label { font-size:0.78rem; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; margin-bottom:8px; }
+.spid-entry input { width:100%; padding:12px 14px; border-radius:9px; border:1px solid rgba(56,189,248,0.3); background:#0f172a; color:#38bdf8; font-size:1rem; font-family:'Courier New',monospace; letter-spacing:2px; outline:none; transition:border-color 0.2s; margin-bottom:8px; }
+.spid-entry input:focus { border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,0.1); }
+.spid-entry input::placeholder { color:#334155; letter-spacing:0; }
+.spid-hint { font-size:0.76rem; color:#475569; margin-bottom:16px; line-height:1.4; }
+.error-msg { color:#ef4444; font-size:0.82rem; margin-bottom:10px; display:none; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:7px; padding:8px 12px; }
+.error-msg.visible { display:block; }
+.btn-access { width:100%; padding:13px; border:none; border-radius:10px; background:linear-gradient(135deg,#38bdf8,#6366f1); color:white; font-size:1rem; font-weight:600; cursor:pointer; transition:0.3s; }
+.btn-access:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(56,189,248,0.3); }
+.btn-access:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>PatientBridge <span>v1.0</span></h1>
+    <a href="/" class="nav-back">← Back to home</a>
+</nav>
+
+<div class="page-body">
+    <div class="wrapper">
+
+        <div class="form-header">
+            <span class="icon">👁️</span>
+            <h2>Monitor a patient</h2>
+            <p>Search for a patient using their details or session ID,<br>
+               then enter the sp_id they shared with you to access their live feed.</p>
+        </div>
+
+        <!-- SEARCH BY DETAILS -->
+        <div class="card">
+            <div class="card-title">Search by patient details</div>
+            <div class="notice">
+                Ask the patient to share their <strong>Session ID</strong> and
+                <strong>special ID (sp_id)</strong> with you before proceeding.
+            </div>
+            <div class="field">
+                <label>Patient name</label>
+                <input type="text" id="mon-name" placeholder="Enter patient's full name">
+            </div>
+            <div class="row2">
+                <div class="field">
+                    <label>Age</label>
+                    <input type="number" id="mon-age" placeholder="e.g. 65" min="1" max="120">
+                </div>
+                <div class="field">
+                    <label>Gender</label>
+                    <select id="mon-gender">
+                        <option value="">Select gender</option>
+                        <option>Male</option><option>Female</option>
+                        <option>Other</option><option>Prefer not to say</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-search" id="search-btn" onclick="searchPatient()">Search patient</button>
+
+            <div class="results-section" id="search-results">
+                <div class="results-label">Results</div>
+                <div id="search-results-list"></div>
+            </div>
+
+            <div class="spid-entry" id="spid-entry-search">
+                <div class="spid-entry-inner">
+                    <div class="spid-label">Enter special ID (sp_id)</div>
+                    <input type="text" id="spid-search" placeholder="Provided by the patient">
+                    <div class="spid-hint">The patient must share this with you privately.</div>
+                    <div class="error-msg" id="spid-error-search">❌ Incorrect sp_id. Please check with the patient and try again.</div>
+                    <button class="btn-access" id="access-btn-search" onclick="accessFeed('search')">Access monitoring feed →</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="or-divider">or find directly by session ID</div>
+
+        <!-- SEARCH BY SESSION ID -->
+        <div class="card">
+            <div class="card-title">Find by session ID</div>
+            <div class="field">
+                <label>Session ID</label>
+                <input type="text" id="mon-session" class="session-input" placeholder="e.g. SES-847291">
+            </div>
+            <button class="btn-outline" onclick="searchBySession()">Find session</button>
+
+            <div class="results-section" id="session-results">
+                <div class="results-label">Session found</div>
+                <div id="session-results-list"></div>
+            </div>
+
+            <div class="spid-entry" id="spid-entry-session">
+                <div class="spid-entry-inner">
+                    <div class="spid-label">Enter special ID (sp_id)</div>
+                    <input type="text" id="spid-session" placeholder="Provided by the patient">
+                    <div class="spid-hint">The patient must share this with you privately.</div>
+                    <div class="error-msg" id="spid-error-session">❌ Incorrect sp_id. Please check with the patient and try again.</div>
+                    <button class="btn-access" id="access-btn-session" onclick="accessFeed('session')">Access monitoring feed →</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let selectedSessionId = null;
+
+const _sessionRegistry = {};
+
+function buildResultCard(r, sourceType, index) {
+    const name     = r.patient_name || 'Unknown';
+    const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+    const meta     = [
+        r.age    ? r.age + ' yrs' : '',
+        r.gender || '',
+        r.disease || '',
+    ].filter(Boolean).join(' · ');
+
+    const key = `${sourceType}-${index}`;
+    _sessionRegistry[key] = r.session_id;
+
+    return `
+        <div class="result-card">
+            <div class="r-avatar">${initials}</div>
+            <div class="r-info">
+                <div class="r-name">${escapeHtml(name)}</div>
+                <div class="r-meta">
+                    ${escapeHtml(meta || 'No additional info')}
+                    &nbsp;·&nbsp;
+                    <span style="color:#38bdf8;font-family:monospace;font-size:0.75rem;">${escapeHtml(r.session_id)}</span>
+                </div>
+            </div>
+            <button class="r-select" data-key="${escapeHtml(key)}" data-source="${escapeHtml(sourceType)}">Select →</button>
+        </div>`;
+}
+
+
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.r-select');
+    if (!btn) return;
+    const key        = btn.dataset.key;
+    const sourceType = btn.dataset.source;
+    const sessionId  = _sessionRegistry[key];
+    if (sessionId) selectPatient(sessionId, sourceType);
+});
+
+async function searchPatient() {
+    const name   = document.getElementById('mon-name').value.trim();
+    const age    = document.getElementById('mon-age').value.trim();
+    const gender = document.getElementById('mon-gender').value;
+
+    if (!name) { alert("Please enter the patient's name."); return; }
+
+    const btn = document.getElementById('search-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Searching...';
+
+    try {
+        let url = `/search-patient?name=${encodeURIComponent(name)}`;
+        if (age)    url += `&age=${age}`;
+        if (gender) url += `&gender=${encodeURIComponent(gender)}`;
+
+        const res  = await fetch(url);
+        const data = await res.json();
+
+        const list    = document.getElementById('search-results-list');
+        const section = document.getElementById('search-results');
+
+        if (!data.results || data.results.length === 0) {
+            list.innerHTML = '<div class="no-results">No active sessions found for this patient.</div>';
+        } else {
+            list.innerHTML = data.results.map((r, i) => buildResultCard(r, 'search', i)).join('');
+        }
+
+        section.classList.add('visible');
+        document.getElementById('spid-entry-search').classList.remove('visible');
+        selectedSessionId = null;
+
+    } catch (err) {
+        console.error('Search error:', err);
+        alert('Search failed. Please try again.');
+    } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Search patient';
+    }
+}
+
+async function searchBySession() {
+    const sid = document.getElementById('mon-session').value.trim();
+    if (!sid) { alert('Please enter a session ID.'); return; }
+
+    try {
+        const res  = await fetch(`/search-session?session_id=${encodeURIComponent(sid)}`);
+        const data = await res.json();
+
+        const list    = document.getElementById('session-results-list');
+        const section = document.getElementById('session-results');
+
+        if (!data.result) {
+            list.innerHTML = '<div class="no-results">No active session found with this ID.</div>';
+        } else {
+            list.innerHTML = buildResultCard(data.result, 'session', 0);
+        }
+
+        section.classList.add('visible');
+        document.getElementById('spid-entry-session').classList.remove('visible');
+        selectedSessionId = null;
+
+    } catch (err) {
+        console.error('Session lookup error:', err);
+        alert('Lookup failed. Please try again.');
+    }
+}
+
+function selectPatient(sessionId, sourceType) {
+    selectedSessionId = sessionId;
+    document.getElementById('spid-entry-search').classList.remove('visible');
+    document.getElementById('spid-entry-session').classList.remove('visible');
+
+    const entryId = sourceType === 'search' ? 'spid-entry-search' : 'spid-entry-session';
+    const errorId = sourceType === 'search' ? 'spid-error-search' : 'spid-error-session';
+    const inputId = sourceType === 'search' ? 'spid-search'       : 'spid-session';
+
+    document.getElementById(entryId).classList.add('visible');
+    document.getElementById(errorId).classList.remove('visible');
+    document.getElementById(inputId).value = '';
+    document.getElementById(entryId).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function accessFeed(sourceType) {
+    if (!selectedSessionId) { alert('Please select a patient first.'); return; }
+
+    const spidInput = document.getElementById(sourceType === 'search' ? 'spid-search'        : 'spid-session');
+    const errorEl   = document.getElementById(sourceType === 'search' ? 'spid-error-search'  : 'spid-error-session');
+    const accessBtn = document.getElementById(sourceType === 'search' ? 'access-btn-search'  : 'access-btn-session');
+
+    const spid = spidInput.value.trim();
+    if (!spid) { alert('Please enter the special ID (sp_id).'); return; }
+
+    accessBtn.disabled    = true;
+    accessBtn.textContent = 'Verifying...';
+    errorEl.classList.remove('visible');
+
+    try {
+        const res  = await fetch('/verify-access', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ session_id: selectedSessionId, sp_id: spid })
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            window.location.href = '/caregiver';
+        } else {
+            errorEl.classList.add('visible');
+            accessBtn.disabled    = false;
+            accessBtn.textContent = 'Access monitoring feed →';
+        }
+    } catch (err) {
+        console.error('Verify error:', err);
+        alert('Verification failed. Please try again.');
+        accessBtn.disabled    = false;
+        accessBtn.textContent = 'Access monitoring feed →';
+    }
+}
+</script>
+</body>
+</html>
