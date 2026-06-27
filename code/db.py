@@ -359,11 +359,22 @@ def get_chat_by_session(session_id):
     with get_db() as conn:
         c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute(
-            "SELECT * FROM logs WHERE session_id = %s ORDER BY id ASC",
+            "SELECT id, sender, message, type, timestamp, COALESCE(is_read, 0) AS is_read FROM logs WHERE session_id = %s ORDER BY id ASC",
             (session_id,),
         )
         return [dict(r) for r in c.fetchall()]
 
+
+def mark_messages_read(session_id, reader):
+    """Mark all messages NOT sent by `reader` as read (is_read = 1).
+    reader is 'Patient' or 'Caregiver' depending on who is viewing the chat.
+    """
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE logs SET is_read = 1 WHERE session_id = %s AND sender != %s AND COALESCE(is_read, 0) = 0",
+            (session_id, reader),
+        )
 
 def save_voice_file(file_id, session_id, mime_type, data):
     with get_db() as conn:

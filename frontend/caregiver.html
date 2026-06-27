@@ -335,6 +335,28 @@ if ('Notification' in window && Notification.permission === 'granted') {
     });
 }
 
+// Inject read-receipt tick styles
+document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('tick-styles')) {
+        const s = document.createElement('style');
+        s.id = 'tick-styles';
+        s.textContent = `
+            .msg-tick {
+                display: inline-block;
+                font-size: 0.72rem;
+                font-weight: 700;
+                margin-left: 5px;
+                letter-spacing: -1px;
+                vertical-align: middle;
+                line-height: 1;
+            }
+            .msg-tick-sent { color: rgba(255,255,255,0.45); }
+            .msg-tick-read { color: #38bdf8; }
+        `;
+        document.head.appendChild(s);
+    }
+});
+
 // ── Mobile Virtual Keyboard ───────────────────────────────────────────────────
 let cgKeyboard = null;
 function isMobileDevice() {
@@ -433,13 +455,21 @@ async function refreshChat() {
             else if (m.sender === 'System') type = 'alert';
             else if (m.sender === 'AI') type = 'ai';
 
+            // Tick indicator: only on Caregiver's own sent messages
+            let tickHtml = '';
+            if (m.sender === 'Caregiver') {
+                tickHtml = m.is_read
+                    ? '<span class="msg-tick msg-tick-read" title="Read">✓✓</span>'
+                    : '<span class="msg-tick msg-tick-sent" title="Sent">✓✓</span>';
+            }
+
             if (isVoiceMsg(m)) {
                 return `<div class="live-msg ${m.sender.toLowerCase()} ${type}">
-                    <small>${m.sender.toUpperCase()}</small>${voicePlayerHtml(m)}</div>`;
+                    <small>${m.sender.toUpperCase()}</small>${voicePlayerHtml(m)}${tickHtml}</div>`;
             }
             const safe = String(m.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
             return `<div class="live-msg ${m.sender.toLowerCase()} ${type}">
-                <small>${m.sender.toUpperCase()}</small><p>${safe}</p></div>`;
+                <small>${m.sender.toUpperCase()}</small><p>${safe}</p>${tickHtml}</div>`;
         }).join('');
 
         if (wasAtBottom) liveDisplay.scrollTop = liveDisplay.scrollHeight;

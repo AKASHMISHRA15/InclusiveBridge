@@ -213,10 +213,19 @@ function renderLiveMessage(m) {
     let senderLabel = m.sender.toUpperCase();
     if (isSystem) senderLabel = '🚨 ALERT';
     if (isAI) senderLabel = '✨ AI';
-    if (isVoiceMsg(m)) {
-        return `<div class="live-msg ${m.sender.toLowerCase()} ${side}"><small>${senderLabel}</small>${voicePlayerHtml(m)}</div>`;
+
+    // Tick indicator: only on Patient's own sent messages (not system/AI)
+    let tickHtml = '';
+    if (isPatient) {
+        tickHtml = m.is_read
+            ? '<span class="msg-tick msg-tick-read" title="Read">✓✓</span>'
+            : '<span class="msg-tick msg-tick-sent" title="Sent">✓✓</span>';
     }
-    return `<div class="live-msg ${m.sender.toLowerCase()} ${side}"><small>${senderLabel}</small><p>${renderMsgBody(m)}</p></div>`;
+
+    if (isVoiceMsg(m)) {
+        return `<div class="live-msg ${m.sender.toLowerCase()} ${side}"><small>${senderLabel}</small>${voicePlayerHtml(m)}${tickHtml}</div>`;
+    }
+    return `<div class="live-msg ${m.sender.toLowerCase()} ${side}"><small>${senderLabel}</small><p>${renderMsgBody(m)}</p>${tickHtml}</div>`;
 }
 
 async function updateChat() {
@@ -510,4 +519,24 @@ document.addEventListener('DOMContentLoaded', () => {
     window.dashboardInterval = setInterval(updateDashboard, 3000);
     window.chatInterval      = setInterval(updateChat, 2000);
     updateChat();
+
+    // Inject read-receipt tick styles
+    if (!document.getElementById('tick-styles')) {
+        const s = document.createElement('style');
+        s.id = 'tick-styles';
+        s.textContent = `
+            .msg-tick {
+                display: inline-block;
+                font-size: 0.72rem;
+                font-weight: 700;
+                margin-left: 5px;
+                letter-spacing: -1px;
+                vertical-align: middle;
+                line-height: 1;
+            }
+            .msg-tick-sent { color: rgba(255,255,255,0.45); }
+            .msg-tick-read { color: #38bdf8; }
+        `;
+        document.head.appendChild(s);
+    }
 });

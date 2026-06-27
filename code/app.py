@@ -20,6 +20,7 @@ from .db import (
     save_push_subscription, get_push_subscriptions, count_push_subscriptions,
     delete_push_subscription, create_session_dashboard, get_user_profile,
     update_user_profile, get_dashboards_for_user, get_session_dashboard,
+    mark_messages_read,
 )
 try:
     from pywebpush import webpush, WebPushException
@@ -1031,17 +1032,35 @@ async def reset_password(data: dict, request: Request):
 def _format_chat_row(row: dict) -> dict:
     item = dict(row)
     item["msg_type"] = item.get("type") or "message"
+    item["is_read"]  = int(item.get("is_read") or 0)
     return item
 
 
 @app.get("/chat")
 def get_chat(request: Request):
-    sid = get_monitoring_sid(request) or get_patient_sid(request)
-    if not sid: return []
+    # Determine who is fetching to mark their incoming messages as read
+    monitoring_sid = get_monitoring_sid(request)
+    patient_sid    = get_patient_sid(request)
+
+    if monitoring_sid:
+        sid    = monitoring_sid
+        reader = "Caregiver"  # caregiver is reading → mark Patient messages read
+    elif patient_sid:
+        sid    = patient_sid
+        reader = "Patient"    # patient is reading → mark Caregiver/System messages read
+    else:
+        return []
+
+    # Mark incoming messages as read for this viewer
+    try:
+        mark_messages_read(sid, reader)
+    except Exception:
+        pass  # is_read column may not exist yet (migration pending) — degrade gracefully
+
     with get_db() as conn:
         c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute(
-            "SELECT sender, message, timestamp, type FROM logs WHERE session_id = %s ORDER BY id ASC",
+            "SELECT sender, message, timestamp, type, COALESCE(is_read, 0) AS is_read FROM logs WHERE session_id = %s ORDER BY id ASC",
             (sid,),
         )
         return [_format_chat_row(r) for r in c.fetchall()]
